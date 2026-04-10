@@ -8,9 +8,11 @@ import dao.AppointmentDAO;
 import dao.DoctorDAO;
 import dao.PatientDAO;
 import dao.RoomDAO;
+import dao.MedicalRecordDAO;
 import model.Appointment;
 import model.Doctor;
 import model.Patient;
+import model.MedicalRecord;
 import org.bson.Document;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ public class ApiServer {
     private static DoctorDAO doctorDAO = new DoctorDAO();
     private static AppointmentDAO appointmentDAO = new AppointmentDAO();
     private static RoomDAO roomDAO = new RoomDAO();
+    private static MedicalRecordDAO recordDAO = new MedicalRecordDAO();
 
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
@@ -34,6 +37,7 @@ public class ApiServer {
         server.createContext("/api/doctors", new DoctorHandler());
         server.createContext("/api/appointments", new AppointmentHandler());
         server.createContext("/api/rooms", new RoomHandler());
+        server.createContext("/api/records", new RecordHandler());
 
         server.setExecutor(null);
         System.out.println("Starting API Server on port 8080...");
@@ -406,6 +410,107 @@ public class ApiServer {
                     if (query != null && query.contains("id=")) {
                         int id = Integer.parseInt(query.split("id=")[1]);
                         appointmentDAO.deleteAppointment(id);
+                        String response = "{\"status\":\"success\"}";
+                        exchange.sendResponseHeaders(200, response.getBytes().length);
+                        OutputStream os = exchange.getResponseBody();
+                        os.write(response.getBytes());
+                        os.close();
+                    }
+                } catch (Exception e) {
+                    String response = "{\"status\":\"error\"}";
+                    exchange.sendResponseHeaders(400, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
+            }
+        }
+    }
+
+    static class RecordHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            setCORSAndHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod()))
+                return;
+            String method = exchange.getRequestMethod();
+
+            if ("GET".equals(method)) {
+                List<Document> records = recordDAO.getRecordsList();
+                StringBuilder json = new StringBuilder("[");
+                for (int i = 0; i < records.size(); i++) {
+                    json.append(records.get(i).toJson());
+                    if (i < records.size() - 1)
+                        json.append(",");
+                }
+                json.append("]");
+                byte[] response = json.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, response.length);
+                OutputStream os = exchange.getResponseBody();
+                os.write(response);
+                os.close();
+            } else if ("POST".equals(method)) {
+                InputStream is = exchange.getRequestBody();
+                String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                try {
+                    Document doc = Document.parse(body);
+                    int rid = Integer.parseInt(doc.get("recordId").toString());
+                    String pName = doc.getString("patientName");
+                    String dName = doc.getString("doctorName");
+                    String diag = doc.getString("diagnosis");
+                    String treat = doc.getString("treatment");
+                    String date = doc.getString("date");
+
+                    if (recordDAO.exists(rid)) {
+                        throw new Exception("Record already exists!");
+                    }
+
+                    MedicalRecord r = new MedicalRecord(rid, pName, dName, diag, treat, date);
+                    recordDAO.addRecord(r);
+
+                    String response = "{\"status\":\"success\"}";
+                    exchange.sendResponseHeaders(201, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                } catch (Exception e) {
+                    String response = "{\"status\":\"error\", \"message\":\"" + e.getMessage() + "\"}";
+                    exchange.sendResponseHeaders(400, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
+            } else if ("PUT".equals(method)) {
+                InputStream is = exchange.getRequestBody();
+                String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                try {
+                    Document doc = Document.parse(body);
+                    int rid = Integer.parseInt(doc.get("recordId").toString());
+                    String diag = doc.getString("diagnosis");
+                    String treat = doc.getString("treatment");
+
+                    if (!recordDAO.exists(rid))
+                        throw new Exception("Record not found!");
+
+                    recordDAO.updateRecord(rid, diag, treat);
+                    String response = "{\"status\":\"success\"}";
+                    exchange.sendResponseHeaders(200, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                } catch (Exception e) {
+                    String response = "{\"status\":\"error\", \"message\":\"" + e.getMessage() + "\"}";
+                    exchange.sendResponseHeaders(400, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
+            } else if ("DELETE".equals(method)) {
+                String query = exchange.getRequestURI().getQuery();
+                try {
+                    if (query != null && query.contains("id=")) {
+                        int id = Integer.parseInt(query.split("id=")[1]);
+                        recordDAO.deleteRecord(id);
                         String response = "{\"status\":\"success\"}";
                         exchange.sendResponseHeaders(200, response.getBytes().length);
                         OutputStream os = exchange.getResponseBody();

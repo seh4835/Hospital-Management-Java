@@ -123,3 +123,34 @@ export const dischargePatient = async (patientName) => {
     });
     return res.json();
 };
+
+// --- Medical Records ---
+export const fetchRecords = async () => {
+    const res = await fetch(`${API_BASE}/records`);
+    return res.json();
+};
+
+export const createRecord = async (record) => {
+    const res = await fetch(`${API_BASE}/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+    });
+    return res.json();
+};
+
+export const updateRecord = async (id, diagnosis, treatment) => {
+    const res = await fetch(`${API_BASE}/records`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordId: id, diagnosis, treatment }),
+    });
+    return res.json();
+};
+
+export const deleteRecord = async (id) => {
+    const res = await fetch(`${API_BASE}/records?id=${id}`, {
+        method: 'DELETE',
+    });
+    return res.json();
+};

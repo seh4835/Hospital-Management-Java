@@ -8,6 +8,7 @@ function App() {
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [records, setRecords] = useState([]);
 
   const loadData = async () => {
     try {
@@ -15,10 +16,12 @@ function App() {
       const d = await api.fetchDoctors();
       const a = await api.fetchAppointments();
       const r = await api.fetchRooms();
+      const recs = await api.fetchRecords();
       setPatients(p);
       setDoctors(d);
       setAppointments(a);
       setRooms(r);
+      setRecords(recs);
     } catch (e) {
       console.error('Error fetching data (is the Java API server running?)', e);
     }
@@ -36,7 +39,7 @@ function App() {
           <h2>Sanctuary Health</h2>
         </div>
         <nav className="sidebar-nav">
-          {['Dashboard', 'Patients', 'Doctors', 'Appointments', 'Rooms'].map((tab) => (
+          {['Dashboard', 'Patients', 'Doctors', 'Appointments', 'Rooms', 'Records'].map((tab) => (
             <button
               key={tab}
               className={`nav-btn ${activeTab === tab ? 'active' : ''}`}
@@ -47,6 +50,7 @@ function App() {
               {tab === 'Doctors' && 'Medical Staff'}
               {tab === 'Appointments' && 'Appointments'}
               {tab === 'Rooms' && 'Room Management'}
+              {tab === 'Records' && 'Medical Records'}
             </button>
           ))}
         </nav>
@@ -54,17 +58,18 @@ function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {activeTab === 'Dashboard' && <Dashboard patients={patients} doctors={doctors} appointments={appointments} rooms={rooms} reload={loadData} />}
+        {activeTab === 'Dashboard' && <Dashboard patients={patients} doctors={doctors} appointments={appointments} rooms={rooms} records={records} reload={loadData} />}
         {activeTab === 'Patients' && <PatientsView patients={patients} reload={loadData} />}
         {activeTab === 'Doctors' && <DoctorsView doctors={doctors} reload={loadData} />}
         {activeTab === 'Appointments' && <AppointmentsView appointments={appointments} reload={loadData} />}
         {activeTab === 'Rooms' && <RoomsView rooms={rooms} reload={loadData} />}
+        {activeTab === 'Records' && <MedicalRecordsView records={records} reload={loadData} patients={patients} doctors={doctors} />}
       </main>
     </div>
   );
 }
 
-function Dashboard({ patients, doctors, appointments, rooms = [], reload }) {
+function Dashboard({ patients, doctors, appointments, rooms = [], records = [], reload }) {
   const availableRooms = rooms.filter(r => !r.occupied).length;
 
   const handleAdmit = async () => {
@@ -110,6 +115,10 @@ function Dashboard({ patients, doctors, appointments, rooms = [], reload }) {
         <div className="metric-card">
           <p className="metric-title">Available Rooms</p>
           <p className="metric-value">{availableRooms} / {rooms.length}</p>
+        </div>
+        <div className="metric-card">
+          <p className="metric-title">Medical Records</p>
+          <p className="metric-value">{records.length}</p>
         </div>
       </div>
 
@@ -530,6 +539,136 @@ function RoomsView({ rooms, reload }) {
             ))}
             {filteredRooms.length === 0 && (
               <tr><td colSpan="4" style={{textAlign: 'center', color: '#64748B'}}>No rooms found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MedicalRecordsView({ records, reload, patients, doctors }) {
+  const [form, setForm] = useState({ recordId: '', patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState('patient');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const res = await api.createRecord(form);
+    if (res && res.status === 'error') {
+      alert(res.message || "An error occurred");
+      return;
+    }
+    setForm({ recordId: '', patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
+    reload();
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Delete this medical record?')) {
+      await api.deleteRecord(id);
+      reload();
+    }
+  };
+
+  const handleUpdate = async (id) => {
+    const diag = window.prompt("Enter updated diagnosis:");
+    const treat = window.prompt("Enter updated treatment:");
+    if (diag && treat) {
+      await api.updateRecord(id, diag, treat);
+      reload();
+    }
+  };
+
+  const filteredRecords = records.filter(r => {
+    if (!searchQuery) return true;
+    if (searchType === 'id') return r.recordId.toString().includes(searchQuery);
+    if (searchType === 'patient') return r.patientName.toLowerCase().includes(searchQuery.toLowerCase());
+    return true;
+  }).sort((a, b) => a.recordId - b.recordId);
+
+  return (
+    <div className="page-container">
+      <h1 className="page-title">Medical Records</h1>
+
+      <div className="form-card">
+        <form onSubmit={submit} className="data-form">
+          <div className="input-group">
+            <label>Record ID</label>
+            <input required type="number" value={form.recordId} onChange={(e) => setForm({ ...form, recordId: e.target.value })} />
+          </div>
+          <div className="input-group">
+            <label>Patient Name</label>
+            <select required value={form.patientName} onChange={(e) => setForm({ ...form, patientName: e.target.value })}>
+              <option value="">Select Patient</option>
+              {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Doctor Name</label>
+            <select required value={form.doctorName} onChange={(e) => setForm({ ...form, doctorName: e.target.value })}>
+              <option value="">Select Doctor</option>
+              {doctors.map(d => <option key={d.doctorId} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Diagnosis</label>
+            <input required type="text" value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} />
+          </div>
+          <div className="input-group">
+            <label>Treatment</label>
+            <input required type="text" value={form.treatment} onChange={(e) => setForm({ ...form, treatment: e.target.value })} />
+          </div>
+          <div className="input-group">
+            <label>Date</label>
+            <input required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          </div>
+          <button className="primary-btn" type="submit">Add Record</button>
+        </form>
+      </div>
+
+      <div className="table-container">
+        <div style={{ padding: '15px 20px', background: '#fff', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <select value={searchType} onChange={(e) => setSearchType(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+            <option value="patient">Search by Patient</option>
+            <option value="id">Search by Record ID</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', width: '250px' }}
+          />
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Record ID</th>
+              <th>Patient</th>
+              <th>Doctor</th>
+              <th>Diagnosis</th>
+              <th>Treatment</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRecords.map(r => (
+              <tr key={r.recordId}>
+                <td>{r.recordId}</td>
+                <td>{r.patientName}</td>
+                <td>{r.doctorName}</td>
+                <td>{r.diagnosis}</td>
+                <td>{r.treatment}</td>
+                <td>{r.date}</td>
+                <td>
+                  <button onClick={() => handleUpdate(r.recordId)} className="action-btn update-btn" style={{ marginRight: '10px' }}>Update</button>
+                  <button onClick={() => handleDelete(r.recordId)} className="action-btn delete-btn">Delete</button>
+                </td>
+              </tr>
+            ))}
+            {filteredRecords.length === 0 && (
+              <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748B' }}>No medical records found.</td></tr>
             )}
           </tbody>
         </table>
