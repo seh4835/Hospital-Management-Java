@@ -1,10 +1,10 @@
 package model;
 
 public class Appointment {
-    private int appointmentId;
-    private int patientId;
-    private int doctorId;
-    private String date;
+    public int appointmentId;
+    public int patientId;
+    public int doctorId;
+    public String date;
 
     public Appointment(int appointmentId, int patientId, int doctorId, String date) {
         this.appointmentId = appointmentId;
