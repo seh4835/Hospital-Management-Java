@@ -2,16 +2,8 @@ package main;
 
 import java.util.Scanner;
 
-import dao.PatientDAO;
-import dao.DoctorDAO;
-import dao.AppointmentDAO;
-import dao.RoomDAO;
-import dao.MedicalRecordDAO; // ✅ NEW
-
-import model.Patient;
-import model.Doctor;
-import model.Appointment;
-import model.MedicalRecord; // ✅ NEW
+import dao.*;
+import model.*;
 
 public class TestConnection {
     public static void main(String[] args) {
@@ -23,6 +15,10 @@ public class TestConnection {
         AppointmentDAO appointmentDAO = new AppointmentDAO();
         RoomDAO roomDAO = new RoomDAO();
         MedicalRecordDAO recordDAO = new MedicalRecordDAO(); // ✅ NEW
+        BillingDAO billingDAO = new BillingDAO(); // ✅ NEW
+        PharmacyDAO pharmacyDAO = new PharmacyDAO(); // ✅ NEW
+        LabDAO labDAO = new LabDAO(); // ✅ NEW
+        OperationDAO operationDAO = new OperationDAO();
 
         while (true) {
             System.out.println("\n--- Hospital Management System ---");
@@ -61,8 +57,38 @@ public class TestConnection {
             System.out.println("23. Update Record");
             System.out.println("24. Delete Record");
 
+            // BILLING
+            System.out.println("25. Add Bill");
+            System.out.println("26. View Bills");
+            System.out.println("27. Search Bill by ID");
+            System.out.println("28. Search Bills by Patient");
+            System.out.println("29. Update Bill");
+            System.out.println("30. Delete Bill");
+
+            // PHARMACY 🔥
+            System.out.println("31. Add Medicine");
+            System.out.println("32. View Medicines");
+            System.out.println("33. Search Medicine by ID");
+            System.out.println("34. Search Medicine by Name");
+            System.out.println("35. Update Medicine");
+            System.out.println("36. Delete Medicine");
+            System.out.println("37. Sell Medicine");
+
+            // LAB 🔥
+            System.out.println("38. Add Test Record");
+            System.out.println("39. View All Tests");
+            System.out.println("40. Search Test by ID");
+            System.out.println("41. Search Tests by Patient");
+            System.out.println("42. Update Test Result");
+            System.out.println("43. Delete Test");
+
+            System.out.println("44. Schedule Operation");
+            System.out.println("45. View Operations");
+            System.out.println("46. Search Operation");
+            System.out.println("47. Delete Operation");
+
             // EXIT
-            System.out.println("25. Exit");
+            System.out.println("48. Exit");
 
             System.out.print("Enter choice: ");
             int choice = sc.nextInt();
@@ -192,14 +218,14 @@ public class TestConnection {
                     System.out.print("Enter Patient ID: ");
                     int apid = sc.nextInt();
                     if (!patientDAO.exists(apid)) {
-                        System.out.println("❌ Patient does not exist!");
+                        System.out.println("[ERROR] Patient does not exist!");
                         break;
                     }
 
                     System.out.print("Enter Doctor ID: ");
                     int adid = sc.nextInt();
                     if (!doctorDAO.exists(adid)) {
-                        System.out.println("❌ Doctor does not exist!");
+                        System.out.println("[ERROR] Doctor does not exist!");
                         break;
                     }
 
@@ -239,18 +265,18 @@ public class TestConnection {
                     }
 
                     if (!found) {
-                        System.out.println("❌ Patient not found!");
+                        System.out.println("[ERROR] Patient not found!");
                         break;
                     }
 
                     int roomId = roomDAO.getAvailableRoom();
                     if (roomId == -1) {
-                        System.out.println("❌ No rooms available!");
+                        System.out.println("[ERROR] No rooms available!");
                         break;
                     }
 
                     roomDAO.assignRoom(roomId, patientName);
-                    System.out.println("✅ Patient admitted to room: " + roomId);
+                    System.out.println("[SUCCESS] Patient admitted to room: " + roomId);
                     break;
 
                 // ---------------- DISCHARGE ----------------
@@ -261,12 +287,12 @@ public class TestConnection {
 
                     int dRoomId = roomDAO.getRoomByPatient(dname);
                     if (dRoomId == -1) {
-                        System.out.println("❌ Patient is not admitted!");
+                        System.out.println("[ERROR] Patient is not admitted!");
                         break;
                     }
 
                     roomDAO.freeRoom(dRoomId);
-                    System.out.println("✅ Patient discharged from room: " + dRoomId);
+                    System.out.println("[SUCCESS] Patient discharged from room: " + dRoomId);
                     break;
 
                 // ---------------- EMR ----------------
@@ -334,8 +360,258 @@ public class TestConnection {
                     recordDAO.deleteRecord(sc.nextInt());
                     break;
 
-                // ---------------- EXIT ----------------
+                // ---------------- BILLING ----------------
                 case 25:
+                    int bid;
+                    while (true) {
+                        System.out.print("Enter Bill ID: ");
+                        bid = sc.nextInt();
+                        if (billingDAO.exists(bid)) {
+                            System.out.println("ID already exists! Try again.");
+                        } else
+                            break;
+                    }
+
+                    sc.nextLine();
+                    System.out.print("Enter Patient Name: ");
+                    String bname = sc.nextLine();
+
+                    System.out.print("Enter Treatment: ");
+                    String treatment = sc.nextLine();
+
+                    System.out.print("Enter Amount: ");
+                    double amount = sc.nextDouble();
+                    sc.nextLine();
+
+                    System.out.print("Insurance (Yes/No): ");
+                    String status = sc.nextLine();
+
+                    billingDAO.addBill(new Bill(bid, bname, treatment, amount, status));
+                    break;
+
+                case 26:
+                    billingDAO.getAllBills();
+                    break;
+
+                case 27:
+                    System.out.print("Enter Bill ID: ");
+                    billingDAO.searchBill(sc.nextInt());
+                    break;
+
+                case 28:
+                    sc.nextLine();
+                    System.out.print("Enter Patient Name: ");
+                    billingDAO.searchByPatient(sc.nextLine());
+                    break;
+
+                case 29:
+                    System.out.print("Enter Bill ID: ");
+                    int ubid = sc.nextInt();
+
+                    System.out.print("Enter New Amount: ");
+                    double newAmount = sc.nextDouble();
+                    sc.nextLine();
+
+                    System.out.print("Enter New Insurance Status: ");
+                    String newStatus = sc.nextLine();
+
+                    billingDAO.updateBill(ubid, newAmount, newStatus);
+                    break;
+
+                case 30:
+                    System.out.print("Enter Bill ID: ");
+                    billingDAO.deleteBill(sc.nextInt());
+                    break;
+
+                // ---------------- PHARMACY ----------------
+
+                case 31:
+                    int mid;
+                    while (true) {
+                        System.out.print("Enter Medicine ID: ");
+                        mid = sc.nextInt();
+                        if (pharmacyDAO.exists(mid)) {
+                            System.out.println("ID already exists! Try again.");
+                        } else
+                            break;
+                    }
+
+                    sc.nextLine();
+                    System.out.print("Enter Medicine Name: ");
+                    String mname = sc.nextLine();
+
+                    System.out.print("Enter Stock: ");
+                    int stock = sc.nextInt();
+
+                    System.out.print("Enter Price: ");
+                    double price = sc.nextDouble();
+
+                    pharmacyDAO.addMedicine(new Medicine(mid, mname, stock, price));
+                    break;
+
+                case 32:
+                    pharmacyDAO.getAllMedicines();
+                    break;
+
+                case 33:
+                    System.out.print("Enter Medicine ID: ");
+                    pharmacyDAO.searchMedicine(sc.nextInt());
+                    break;
+
+                case 34:
+                    sc.nextLine();
+                    System.out.print("Enter Medicine Name: ");
+                    pharmacyDAO.searchByName(sc.nextLine());
+                    break;
+
+                case 35:
+                    System.out.print("Enter Medicine ID: ");
+                    int umid = sc.nextInt();
+
+                    System.out.print("Enter New Stock: ");
+                    int newStock = sc.nextInt();
+
+                    System.out.print("Enter New Price: ");
+                    double newPrice = sc.nextDouble();
+
+                    pharmacyDAO.updateMedicine(umid, newStock, newPrice);
+                    break;
+
+                case 36:
+                    System.out.print("Enter Medicine ID: ");
+                    pharmacyDAO.deleteMedicine(sc.nextInt());
+                    break;
+
+                case 37:
+                    System.out.print("Enter Medicine ID: ");
+                    int sid = sc.nextInt();
+
+                    System.out.print("Enter Quantity: ");
+                    int qty = sc.nextInt();
+
+                    pharmacyDAO.sellMedicine(sid, qty);
+                    break;
+
+                // ---------------- LAB ----------------
+                case 38:
+                    int tid;
+                    while (true) {
+                        System.out.print("Enter Test ID: ");
+                        tid = sc.nextInt();
+                        if (labDAO.exists(tid)) {
+                            System.out.println("ID already exists! Try again.");
+                        } else
+                            break;
+                    }
+
+                    sc.nextLine();
+                    System.out.print("Enter Patient Name: ");
+                    String name = sc.nextLine();
+
+                    System.out.print("Enter Test Type: ");
+                    String type = sc.nextLine();
+
+                    System.out.print("Enter Result: ");
+                    String result = sc.nextLine();
+
+                    System.out.print("Enter Date: ");
+                    String testDate = sc.nextLine();
+
+                    System.out.print("Enter Time: ");
+                    String time = sc.nextLine();
+
+                    labDAO.addTest(new TestRecord(tid, name, type, result, testDate, time));
+                    break;
+
+                case 39:
+                    labDAO.getAllTests();
+                    break;
+
+                case 40:
+                    System.out.print("Enter Test ID: ");
+                    labDAO.searchTest(sc.nextInt());
+                    break;
+
+                case 41:
+                    sc.nextLine();
+                    System.out.print("Enter Patient Name: ");
+                    labDAO.searchByPatient(sc.nextLine());
+                    break;
+
+                case 42:
+                    System.out.print("Enter Test ID: ");
+                    int utid = sc.nextInt();
+                    sc.nextLine();
+
+                    System.out.print("Enter New Result: ");
+                    String newResult = sc.nextLine();
+
+                    labDAO.updateTest(utid, newResult);
+                    break;
+
+                case 43:
+                    System.out.print("Enter Test ID: ");
+                    labDAO.deleteTest(sc.nextInt());
+                    break;
+
+                // ---------------- OPERATION ----------------
+                case 44:
+                    int oid;
+                    while (true) {
+                        System.out.print("Enter Operation ID: ");
+                        oid = sc.nextInt();
+
+                        if (operationDAO.exists(oid)) {
+                            System.out.println("ID already exists! Try again.");
+                        } else
+                            break;
+                    }
+
+                    sc.nextLine();
+                    System.out.print("Enter Patient Name: ");
+                    String opPatient = sc.nextLine();
+
+                    System.out.print("Enter Doctor Name: ");
+                    String opDoctor = sc.nextLine();
+
+                    System.out.print("Enter Room ID: ");
+                    int opRoom = sc.nextInt();
+                    sc.nextLine();
+
+                    System.out.print("Enter Date: ");
+                    String opDate = sc.nextLine();
+
+                    System.out.print("Enter Time: ");
+                    String opTime = sc.nextLine();
+
+                    try {
+                        operationDAO.addOperation(
+                            new Operation(oid, opPatient, opDoctor, opRoom, opDate, opTime, "Scheduled"),
+                            doctorDAO,
+                            roomDAO
+                        );
+                        System.out.println("[SUCCESS] Operation scheduled successfully!");
+                    } catch (Exception e) {
+                        System.out.println("[ERROR] " + e.getMessage());
+                    }
+                    break;
+
+                case 45:
+                    operationDAO.getAllOperations();
+                    break;
+
+                case 46:
+                    System.out.print("Enter Operation ID: ");
+                    operationDAO.searchOperation(sc.nextInt());
+                    break;
+
+                case 47:
+                    System.out.print("Enter Operation ID: ");
+                    operationDAO.deleteOperation(sc.nextInt());
+                    break;
+
+                // ---------------- EXIT ----------------
+                case 48:
                     System.out.println("Exiting...");
                     sc.close();
                     return;

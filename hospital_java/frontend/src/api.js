@@ -154,3 +154,120 @@ export const deleteRecord = async (id) => {
     });
     return res.json();
 };
+
+// --- BILLING ---
+export const fetchBills = async () => {
+    const res = await fetch(`${API_BASE}/billing`);
+    return res.json();
+};
+
+export const createBill = async (bill) => {
+    const res = await fetch(`${API_BASE}/billing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bill),
+    });
+    return res.json();
+};
+
+export const deleteBill = async (id) => {
+    const res = await fetch(`${API_BASE}/billing?id=${id}`, {
+        method: 'DELETE',
+    });
+    return res.json();
+};
+
+// --- PHARMACY (MEDICINES) ---
+export const fetchMedicines = async () => {
+    const res = await fetch(`${API_BASE}/pharmacy`);
+    return res.json();
+};
+
+export const createMedicine = async (medicine) => {
+    const res = await fetch(`${API_BASE}/pharmacy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(medicine),
+    });
+    return res.json();
+};
+
+export const updateMedicine = async (medicineId, stock, price) => {
+    const res = await fetch(`${API_BASE}/pharmacy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ medicineId, stock, price }),
+    });
+    return res.json();
+};
+
+export const deleteMedicine = async (id) => {
+    const res = await fetch(`${API_BASE}/pharmacy?id=${id}`, {
+        method: 'DELETE',
+    });
+    return res.json();
+};
+
+// --- LAB (TESTS) ---
+export const fetchTests = async () => {
+    const res = await fetch(`${API_BASE}/lab`);
+    return res.json();
+};
+
+export const createTest = async (test) => {
+    const res = await fetch(`${API_BASE}/lab`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(test),
+    });
+    return res.json();
+};
+
+export const updateTest = async (testId, result) => {
+    const res = await fetch(`${API_BASE}/lab`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ testId, result }),
+    });
+    return res.json();
+};
+
+export const deleteTest = async (id) => {
+    const res = await fetch(`${API_BASE}/lab?id=${id}`, {
+        method: 'DELETE',
+    });
+    return res.json();
+};
+
+
+// --- OPERATIONS ---
+export const fetchOperations = async () => {
+    const res = await fetch(`${API_BASE}/operations`);
+    return res.json();
+};
+
+export const createOperation = async (operation) => {
+    const res = await fetch(`${API_BASE}/operations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(operation),
+    });
+    return res.json();
+};
+
+export const updateOperationStatus = async (operationId, status) => {
+    const res = await fetch(`${API_BASE}/operations`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationId, status }),
+    });
+    return res.json();
+};
+
+export const deleteOperation = async (id) => {
+    const res = await fetch(`${API_BASE}/operations?id=${id}`, {
+        method: 'DELETE',
+    });
+    return res.json();
+};
+
