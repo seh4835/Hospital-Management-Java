@@ -1,33 +1,33 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "java",
-            "name": "ApiServer",
-            "request": "launch",
-            "mainClass": "main.ApiServer",
-            "projectName": "hospital_java_d93b6baf"
-        },
-        {
-            "type": "java",
-            "name": "HospitalUI",
-            "request": "launch",
-            "mainClass": "main.HospitalUI",
-            "projectName": "hospital_java_d93b6baf"
-        },
-        {
-            "type": "java",
-            "name": "TestConnection",
-            "request": "launch",
-            "mainClass": "main.TestConnection",
-            "projectName": "hospital_java_d93b6baf"
-        },
-        {
-            "type": "java",
-            "name": "Run TestConnection",
-            "request": "launch",
-            "mainClass": "main.TestConnection",
-            "projectName": "hospital_java"
-        }
-    ]
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "java",
+			"name": "ApiServer",
+			"request": "launch",
+			"mainClass": "main.ApiServer",
+			"projectName": "hospital_java_d93b6baf"
+		},
+		{
+			"type": "java",
+			"name": "hospitalJar",
+			"request": "launch",
+			"mainClass": "main.HospitalJar",
+			"projectName": "hospital_java_d93b6baf"
+		},
+		{
+			"type": "java",
+			"name": "TestConnection",
+			"request": "launch",
+			"mainClass": "main.TestConnection",
+			"projectName": "hospital_java_d93b6baf"
+		},
+		{
+			"type": "java",
+			"name": "Run TestConnection",
+			"request": "launch",
+			"mainClass": "main.TestConnection",
+			"projectName": "hospital_java"
+		}
+	]
 }
