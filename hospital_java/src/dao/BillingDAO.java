@@ -20,6 +20,13 @@ public class BillingDAO {
         return collection.find(new Document("billId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("billId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("billId") + 1;
+    }
+
     // ---------------- ADD BILL ----------------
     public void addBill(Bill bill) {
 

@@ -5,17 +5,17 @@ public class TestRecord {
     private int testId;
     private String patientName;
     private String testType;
-    private String result;
+    private String status;
     private String date;
     private String time; // ✅ NEW FIELD
 
     public TestRecord(int testId, String patientName, String testType,
-            String result, String testDate, String time) {
+            String status, String testDate, String time) {
 
         this.testId = testId;
         this.patientName = patientName;
         this.testType = testType;
-        this.result = result;
+        this.status = status;
         this.date = testDate;
         this.time = time;
     }
@@ -32,8 +32,8 @@ public class TestRecord {
         return testType;
     }
 
-    public String getResult() {
-        return result;
+    public String getStatus() {
+        return status;
     }
 
     public String getDate() {

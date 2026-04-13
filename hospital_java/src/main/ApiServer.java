@@ -7,7 +7,8 @@ import com.sun.net.httpserver.HttpExchange;
 import dao.AppointmentDAO;
 import dao.DoctorDAO;
 import dao.PatientDAO;
-import dao.RoomDAO;
+import dao.BedDAO;
+import dao.OTRoomDAO;
 import dao.MedicalRecordDAO;
 import dao.BillingDAO;
 import dao.PharmacyDAO;
@@ -20,6 +21,8 @@ import model.MedicalRecord;
 import model.Bill;
 import model.Medicine;
 import model.TestRecord;
+import model.Bed;
+import model.OTRoom;
 import model.Operation;
 import org.bson.Document;
 
@@ -35,7 +38,8 @@ public class ApiServer {
     private static PatientDAO patientDAO = new PatientDAO();
     private static DoctorDAO doctorDAO = new DoctorDAO();
     private static AppointmentDAO appointmentDAO = new AppointmentDAO();
-    private static RoomDAO roomDAO = new RoomDAO();
+    private static BedDAO bedDAO = new BedDAO();
+    private static OTRoomDAO otRoomDAO = new OTRoomDAO();
     private static MedicalRecordDAO recordDAO = new MedicalRecordDAO();
     private static BillingDAO billingDAO = new BillingDAO();
     private static PharmacyDAO pharmacyDAO = new PharmacyDAO();
@@ -86,7 +90,13 @@ public class ApiServer {
                 List<Document> patients = patientDAO.getPatientsList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < patients.size(); i++) {
-                    json.append(patients.get(i).toJson());
+                    Document doc = patients.get(i);
+                    // Format ID to 001, 002, etc.
+                    if (doc.get("patientId") != null) {
+                        int id = Integer.parseInt(doc.get("patientId").toString());
+                        doc.put("patientId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < patients.size() - 1)
                         json.append(",");
                 }
@@ -101,18 +111,15 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int pid = Integer.parseInt(doc.get("patientId").toString());
+                    // AUTO-GENERATE ID
+                    int pid = patientDAO.getNextId();
                     String name = doc.getString("name");
                     int age = Integer.parseInt(doc.get("age").toString());
                     String disease = doc.getString("disease");
 
-                    if (patientDAO.exists(pid)) {
-                        throw new Exception("Patient ID already exists!");
-                    }
-
                     Patient p = new Patient(pid, name, age, disease);
                     patientDAO.addPatient(p);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"patientId\":\"" + String.format("%03d", pid) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -176,10 +183,22 @@ public class ApiServer {
             String method = exchange.getRequestMethod();
 
             if ("GET".equals(method)) {
-                List<Document> doctors = doctorDAO.getDoctorsList();
+                String query = exchange.getRequestURI().getQuery();
+                List<Document> doctors;
+                if (query != null && query.contains("name=")) {
+                    String searchName = query.split("name=")[1];
+                    doctors = doctorDAO.getDoctorsByName(searchName);
+                } else {
+                    doctors = doctorDAO.getDoctorsList();
+                }
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < doctors.size(); i++) {
-                    json.append(doctors.get(i).toJson());
+                    Document doc = doctors.get(i);
+                    if (doc.get("doctorId") != null) {
+                        int id = Integer.parseInt(doc.get("doctorId").toString());
+                        doc.put("doctorId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < doctors.size() - 1)
                         json.append(",");
                 }
@@ -194,18 +213,15 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int did = Integer.parseInt(doc.get("doctorId").toString());
+                    // AUTO-GENERATE ID
+                    int did = doctorDAO.getNextId();
                     String name = doc.getString("name");
                     int age = Integer.parseInt(doc.get("age").toString());
                     String spec = doc.getString("specialization");
 
-                    if (doctorDAO.exists(did)) {
-                        throw new Exception("Doctor ID already exists!");
-                    }
-
                     Doctor d = new Doctor(did, name, age, spec);
                     doctorDAO.addDoctor(d);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"doctorId\":\"" + String.format("%03d", did) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -250,13 +266,29 @@ public class ApiServer {
 
             try {
                 if ("GET".equals(method)) {
-                    List<Document> rooms = roomDAO.getRoomsList();
+                    List<Document> beds = bedDAO.getBedsList();
+                    List<Document> ots = otRoomDAO.getOTRoomsList();
                     StringBuilder json = new StringBuilder("[");
-                    for (int i = 0; i < rooms.size(); i++) {
-                        json.append(rooms.get(i).toJson());
-                        if (i < rooms.size() - 1)
+
+                    for (int i = 0; i < beds.size(); i++) {
+                        Document doc = beds.get(i);
+                        int id = Integer.parseInt(doc.get("bedId").toString());
+                        doc.put("roomId", String.format("%03d", id));
+                        doc.put("roomType", "BED");
+                        json.append(doc.toJson());
+                        if (i < beds.size() - 1 || !ots.isEmpty())
                             json.append(",");
                     }
+                    for (int i = 0; i < ots.size(); i++) {
+                        Document doc = ots.get(i);
+                        int id = Integer.parseInt(doc.get("roomId").toString());
+                        doc.put("roomId", String.format("%03d", id));
+                        doc.put("roomType", "OT");
+                        json.append(doc.toJson());
+                        if (i < ots.size() - 1)
+                            json.append(",");
+                    }
+
                     json.append("]");
                     byte[] response = json.toString().getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(200, response.length);
@@ -267,40 +299,51 @@ public class ApiServer {
                     InputStream is = exchange.getRequestBody();
                     String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                     Document doc = Document.parse(body);
-                    int rid = Integer.parseInt(doc.get("roomId").toString());
                     String roomType = doc.getString("roomType");
 
-                    if (roomType == null || (!roomType.equals("BED") && !roomType.equals("OT"))) {
+                    if ("BED".equals(roomType)) {
+                        int rid = bedDAO.getNextId();
+                        bedDAO.addBed(new Bed(rid, false, ""));
+                        String response = "{\"status\":\"success\", \"roomId\":\"" + String.format("%03d", rid) + "\"}";
+                        exchange.sendResponseHeaders(201, response.getBytes().length);
+                        OutputStream os = exchange.getResponseBody();
+                        os.write(response.getBytes());
+                        os.close();
+                    } else if ("OT".equals(roomType)) {
+                        int rid = otRoomDAO.getNextId();
+                        otRoomDAO.addOTRoom(new OTRoom(rid, false, ""));
+                        String response = "{\"status\":\"success\", \"roomId\":\"" + String.format("%03d", rid) + "\"}";
+                        exchange.sendResponseHeaders(201, response.getBytes().length);
+                        OutputStream os = exchange.getResponseBody();
+                        os.write(response.getBytes());
+                        os.close();
+                    } else {
                         throw new Exception("roomType must be 'BED' or 'OT'!");
                     }
-                    if (roomDAO.exists(rid)) {
-                        throw new Exception("Room already exists!");
-                    }
-                    roomDAO.addRoom(rid, roomType);
-
-                    String response = "{\"status\":\"success\"}";
-                    exchange.sendResponseHeaders(201, response.getBytes().length);
-                    OutputStream os = exchange.getResponseBody();
-                    os.write(response.getBytes());
-                    os.close();
                 } else if ("PUT".equals(method)) {
                     InputStream is = exchange.getRequestBody();
                     String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                     Document doc = Document.parse(body);
-                    Integer id = doc.getInteger("roomId");
+                    Object roomIdObj = doc.get("roomId");
+                    if (roomIdObj == null)
+                        throw new Exception("Room ID required!");
+                    int id = Integer.parseInt(roomIdObj.toString());
                     String action = doc.getString("action");
+                    String typeHint = doc.getString("roomType"); // OPTIONAL HINT
 
                     if ("assign".equals(action)) {
-                        if (id == null || !roomDAO.exists(id))
-                            throw new Exception("Room does not exist!");
-                        if (roomDAO.isOccupied(id))
-                            throw new Exception("Room is already occupied!");
                         String patientName = doc.getString("patientName");
-                        roomDAO.assignRoom(id, patientName);
+                        if ("OT".equals(typeHint)) {
+                            otRoomDAO.assignRoom(id, patientName);
+                        } else {
+                            bedDAO.assignBed(id, patientName);
+                        }
                     } else if ("free".equals(action)) {
-                        if (id == null || !roomDAO.exists(id))
-                            throw new Exception("Room does not exist!");
-                        roomDAO.freeRoom(id);
+                        if ("OT".equals(typeHint)) {
+                            otRoomDAO.freeRoom(id);
+                        } else {
+                            bedDAO.freeBed(id);
+                        }
                     } else if ("admit".equals(action)) {
                         String patientName = doc.getString("patientName");
                         if (patientName == null || patientName.isEmpty())
@@ -316,18 +359,18 @@ public class ApiServer {
                         if (!found)
                             throw new Exception("Patient not found!");
 
-                        int roomId = roomDAO.getAvailableBed();
+                        int roomId = bedDAO.getAvailableBedId();
                         if (roomId == -1)
                             throw new Exception("No hospital beds available!");
-                        roomDAO.assignRoom(roomId, patientName);
+                        bedDAO.assignBed(roomId, patientName);
                     } else if ("discharge".equals(action)) {
                         String patientName = doc.getString("patientName");
                         if (patientName == null || patientName.isEmpty())
                             throw new Exception("Patient name required!");
-                        int roomId = roomDAO.getRoomByPatient(patientName);
+                        int roomId = bedDAO.getBedByPatient(patientName);
                         if (roomId == -1)
                             throw new Exception("Patient is not admitted!");
-                        roomDAO.freeRoom(roomId);
+                        bedDAO.freeBed(roomId);
                     }
                     String response = "{\"status\":\"success\"}";
                     exchange.sendResponseHeaders(200, response.getBytes().length);
@@ -356,10 +399,13 @@ public class ApiServer {
 
             try {
                 if ("GET".equals(method)) {
-                    List<Document> beds = roomDAO.getRoomsByType("BED");
+                    List<Document> beds = bedDAO.getBedsList();
                     StringBuilder json = new StringBuilder("[");
                     for (int i = 0; i < beds.size(); i++) {
-                        json.append(beds.get(i).toJson());
+                        Document doc = beds.get(i);
+                        int id = Integer.parseInt(doc.get("bedId").toString());
+                        doc.put("roomId", String.format("%03d", id));
+                        json.append(doc.toJson());
                         if (i < beds.size() - 1)
                             json.append(",");
                     }
@@ -397,10 +443,13 @@ public class ApiServer {
 
             try {
                 if ("GET".equals(method)) {
-                    List<Document> otRooms = roomDAO.getRoomsByType("OT");
+                    List<Document> otRooms = otRoomDAO.getOTRoomsList();
                     StringBuilder json = new StringBuilder("[");
                     for (int i = 0; i < otRooms.size(); i++) {
-                        json.append(otRooms.get(i).toJson());
+                        Document doc = otRooms.get(i);
+                        int id = Integer.parseInt(doc.get("roomId").toString());
+                        doc.put("roomId", String.format("%03d", id));
+                        json.append(doc.toJson());
                         if (i < otRooms.size() - 1)
                             json.append(",");
                     }
@@ -444,6 +493,11 @@ public class ApiServer {
                 for (int i = 0; i < appointments.size(); i++) {
                     Document appt = appointments.get(i);
 
+                    // Format ID
+                    if (appt.get("appointmentId") != null) {
+                        int id = Integer.parseInt(appt.get("appointmentId").toString());
+                        appt.put("appointmentId", String.format("%03d", id));
+                    }
                     // Fallback for old records with IDs instead of Names
                     if (!appt.containsKey("patientName") && appt.containsKey("patientId")) {
                         int pid = appt.getInteger("patientId");
@@ -479,14 +533,12 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int aid = Integer.parseInt(doc.get("appointmentId").toString());
+                    // AUTO-GENERATE ID
+                    int aid = appointmentDAO.getNextId();
                     int pid = Integer.parseInt(doc.get("patientId").toString());
                     int did = Integer.parseInt(doc.get("doctorId").toString());
                     String date = doc.getString("date");
 
-                    if (appointmentDAO.exists(aid)) {
-                        throw new Exception("Appointment ID already exists!");
-                    }
                     if (!patientDAO.exists(pid)) {
                         throw new Exception("Patient does not exist!");
                     }
@@ -496,7 +548,8 @@ public class ApiServer {
 
                     Appointment a = new Appointment(aid, pid, did, date);
                     appointmentDAO.addAppointment(a);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"appointmentId\":\"" + String.format("%03d", aid)
+                            + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -543,7 +596,12 @@ public class ApiServer {
                 List<Document> records = recordDAO.getRecordsList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < records.size(); i++) {
-                    json.append(records.get(i).toJson());
+                    Document doc = records.get(i);
+                    if (doc.get("recordId") != null) {
+                        int id = Integer.parseInt(doc.get("recordId").toString());
+                        doc.put("recordId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < records.size() - 1)
                         json.append(",");
                 }
@@ -558,21 +616,18 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int rid = Integer.parseInt(doc.get("recordId").toString());
+                    // AUTO-GENERATE ID
+                    int rid = recordDAO.getNextId();
                     String pName = doc.getString("patientName");
                     String dName = doc.getString("doctorName");
                     String diag = doc.getString("diagnosis");
                     String treat = doc.getString("treatment");
                     String date = doc.getString("date");
 
-                    if (recordDAO.exists(rid)) {
-                        throw new Exception("Record already exists!");
-                    }
-
                     MedicalRecord r = new MedicalRecord(rid, pName, dName, diag, treat, date);
                     recordDAO.addRecord(r);
 
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"recordId\":\"" + String.format("%03d", rid) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -645,7 +700,12 @@ public class ApiServer {
                 List<Document> bills = billingDAO.getBillsList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < bills.size(); i++) {
-                    json.append(bills.get(i).toJson());
+                    Document doc = bills.get(i);
+                    if (doc.get("billId") != null) {
+                        int id = Integer.parseInt(doc.get("billId").toString());
+                        doc.put("billId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < bills.size() - 1)
                         json.append(",");
                 }
@@ -660,19 +720,16 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int bid = Integer.parseInt(doc.get("billId").toString());
+                    // AUTO-GENERATE ID
+                    int bid = billingDAO.getNextId();
                     String pName = doc.getString("patientName");
                     String treatment = doc.getString("treatment");
                     double amount = Double.parseDouble(doc.get("amount").toString());
                     String insurance = doc.getString("insuranceStatus");
 
-                    if (billingDAO.exists(bid)) {
-                        throw new Exception("Bill already exists!");
-                    }
-
                     Bill b = new Bill(bid, pName, treatment, amount, insurance);
                     billingDAO.addBill(b);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"billId\":\"" + String.format("%03d", bid) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -720,7 +777,12 @@ public class ApiServer {
                 List<Document> medicines = pharmacyDAO.getMedicinesList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < medicines.size(); i++) {
-                    json.append(medicines.get(i).toJson());
+                    Document doc = medicines.get(i);
+                    if (doc.get("medicineId") != null) {
+                        int id = Integer.parseInt(doc.get("medicineId").toString());
+                        doc.put("medicineId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < medicines.size() - 1)
                         json.append(",");
                 }
@@ -735,18 +797,15 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int mid = Integer.parseInt(doc.get("medicineId").toString());
+                    // AUTO-GENERATE ID
+                    int mid = pharmacyDAO.getNextId();
                     String name = doc.getString("name");
                     int stock = Integer.parseInt(doc.get("stock").toString());
                     double price = Double.parseDouble(doc.get("price").toString());
 
-                    if (pharmacyDAO.exists(mid)) {
-                        throw new Exception("Medicine already exists!");
-                    }
-
                     Medicine m = new Medicine(mid, name, stock, price);
                     pharmacyDAO.addMedicine(m);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"medicineId\":\"" + String.format("%03d", mid) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -816,7 +875,12 @@ public class ApiServer {
                 List<Document> tests = labDAO.getTestsList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < tests.size(); i++) {
-                    json.append(tests.get(i).toJson());
+                    Document doc = tests.get(i);
+                    if (doc.get("testId") != null) {
+                        int id = Integer.parseInt(doc.get("testId").toString());
+                        doc.put("testId", String.format("%03d", id));
+                    }
+                    json.append(doc.toJson());
                     if (i < tests.size() - 1)
                         json.append(",");
                 }
@@ -831,20 +895,17 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int tid = Integer.parseInt(doc.get("testId").toString());
+                    // AUTO-GENERATE ID
+                    int tid = labDAO.getNextId();
                     String pName = doc.getString("patientName");
                     String testType = doc.getString("testType");
-                    String result = doc.getString("result");
+                    String status = doc.getString("status");
                     String date = doc.getString("date");
                     String time = doc.getString("time");
 
-                    if (labDAO.exists(tid)) {
-                        throw new Exception("Test already exists!");
-                    }
-
-                    TestRecord t = new TestRecord(tid, pName, testType, result, date, time);
+                    TestRecord t = new TestRecord(tid, pName, testType, status, date, time);
                     labDAO.addTest(t);
-                    String response = "{\"status\":\"success\"}";
+                    String response = "{\"status\":\"success\", \"testId\":\"" + String.format("%03d", tid) + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -862,9 +923,9 @@ public class ApiServer {
                 try {
                     Document doc = Document.parse(body);
                     int tid = Integer.parseInt(doc.get("testId").toString());
-                    String result = doc.getString("result");
+                    String status = doc.getString("status");
 
-                    labDAO.updateTest(tid, result);
+                    labDAO.updateTest(tid, status);
                     String response = "{\"status\":\"success\"}";
                     exchange.sendResponseHeaders(200, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
@@ -913,7 +974,16 @@ public class ApiServer {
                 List<Document> operations = operationDAO.getOperationsList();
                 StringBuilder json = new StringBuilder("[");
                 for (int i = 0; i < operations.size(); i++) {
-                    json.append(operations.get(i).toJson());
+                    Document doc = operations.get(i);
+                    if (doc.get("operationId") != null) {
+                        int id = Integer.parseInt(doc.get("operationId").toString());
+                        doc.put("operationId", String.format("%03d", id));
+                    }
+                    if (doc.get("roomId") != null) {
+                        int rid = Integer.parseInt(doc.get("roomId").toString());
+                        doc.put("roomId", String.format("%03d", rid));
+                    }
+                    json.append(doc.toJson());
                     if (i < operations.size() - 1)
                         json.append(",");
                 }
@@ -928,20 +998,18 @@ public class ApiServer {
                 String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                 try {
                     Document doc = Document.parse(body);
-                    int oid = Integer.parseInt(doc.get("operationId").toString());
+                    // AUTO-GENERATE ID
+                    int oid = operationDAO.getNextId();
                     String pName = doc.getString("patientName");
                     String dName = doc.getString("doctorName");
                     int roomId = Integer.parseInt(doc.get("roomId").toString());
                     String date = doc.getString("date");
                     String time = doc.getString("time");
 
-                    if (operationDAO.exists(oid)) {
-                        throw new Exception("Operation already exists!");
-                    }
-
                     Operation op = new Operation(oid, pName, dName, roomId, date, time, "Scheduled");
-                    operationDAO.addOperation(op, doctorDAO, roomDAO);
-                    String response = "{\"status\":\"success\"}";
+                    operationDAO.addOperation(op, doctorDAO, otRoomDAO);
+                    String response = "{\"status\":\"success\", \"operationId\":\"" + String.format("%03d", oid)
+                            + "\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
@@ -961,7 +1029,7 @@ public class ApiServer {
                     int oid = Integer.parseInt(doc.get("operationId").toString());
                     String status = doc.getString("status");
 
-                    operationDAO.updateStatus(oid, status, roomDAO);
+                    operationDAO.updateStatus(oid, status, otRoomDAO);
 
                     String response = "{\"status\":\"success\"}";
                     exchange.sendResponseHeaders(200, response.getBytes().length);

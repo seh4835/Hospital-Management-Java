@@ -22,6 +22,13 @@ public class DoctorDAO {
         return collection.find(new Document("doctorId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("doctorId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("doctorId") + 1;
+    }
+
     // ---------------- ADD ----------------
     public void addDoctor(Doctor doctor) {
 
@@ -68,6 +75,15 @@ public class DoctorDAO {
     }
 
     // ---------------- SEARCH BY NAME ----------------
+    public List<Document> getDoctorsByName(String name) {
+        List<Document> list = new ArrayList<>();
+        Document query = new Document("name", new Document("$regex", ".*" + name + ".*").append("$options", "i"));
+        for (Document doc : collection.find(query)) {
+            list.add(doc);
+        }
+        return list;
+    }
+
     public void searchDoctorByName(String name) {
 
         boolean found = false;

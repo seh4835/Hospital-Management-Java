@@ -20,8 +20,15 @@ public class OperationDAO {
         return collection.find(new Document("operationId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("operationId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("operationId") + 1;
+    }
+
     // ---------------- ADD OPERATION ----------------
-    public void addOperation(Operation op, DoctorDAO doctorDAO, RoomDAO roomDAO) throws Exception {
+    public void addOperation(Operation op, DoctorDAO doctorDAO, OTRoomDAO otRoomDAO) throws Exception {
 
         if (exists(op.getOperationId())) {
             throw new Exception("Operation with ID " + op.getOperationId() + " already exists!");
@@ -41,16 +48,11 @@ public class OperationDAO {
         }
 
         // Validate Room
-        if (!roomDAO.exists(op.getRoomId())) {
+        if (!otRoomDAO.exists(op.getRoomId())) {
             throw new Exception("Operating Room ID " + op.getRoomId() + " does not exist!");
         }
 
-        String roomType = roomDAO.getRoomType(op.getRoomId());
-        if (!"OT".equals(roomType)) {
-            throw new Exception("Room " + op.getRoomId() + " is not an OT Room! Please select an OT Room.");
-        }
-
-        if (roomDAO.isOccupied(op.getRoomId())) {
+        if (otRoomDAO.isOccupied(op.getRoomId())) {
             throw new Exception("Operating Room " + op.getRoomId() + " is already occupied!");
         }
 
@@ -66,11 +68,11 @@ public class OperationDAO {
         collection.insertOne(doc);
 
         // Mark room occupied
-        roomDAO.assignRoom(op.getRoomId(), op.getPatientName());
+        otRoomDAO.assignRoom(op.getRoomId(), op.getPatientName());
     }
 
     // ---------------- UPDATE STATUS ----------------
-    public void updateStatus(int id, String newStatus, RoomDAO roomDAO) throws Exception {
+    public void updateStatus(int id, String newStatus, OTRoomDAO otRoomDAO) throws Exception {
 
         Document op = collection.find(new Document("operationId", id)).first();
         if (op == null) {
@@ -83,8 +85,12 @@ public class OperationDAO {
 
         // Logical link: If completed, free the OT Room
         if ("Completed".equalsIgnoreCase(newStatus)) {
-            int roomId = Integer.parseInt(op.get("roomId").toString());
-            roomDAO.freeRoom(roomId);
+            try {
+                int roomId = Integer.parseInt(op.get("roomId").toString());
+                otRoomDAO.freeRoom(roomId);
+            } catch (Exception e) {
+                System.out.println("Error freeing room: " + e.getMessage());
+            }
         }
     }
 

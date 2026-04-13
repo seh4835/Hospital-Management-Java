@@ -20,6 +20,13 @@ public class MedicalRecordDAO {
         return collection.find(new Document("recordId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("recordId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("recordId") + 1;
+    }
+
     // ---------------- ADD RECORD ----------------
     public void addRecord(MedicalRecord record) {
 

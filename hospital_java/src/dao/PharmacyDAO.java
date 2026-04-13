@@ -20,6 +20,13 @@ public class PharmacyDAO {
         return collection.find(new Document("medicineId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("medicineId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("medicineId") + 1;
+    }
+
     // ---------------- ADD MEDICINE ----------------
     public void addMedicine(Medicine med) {
 

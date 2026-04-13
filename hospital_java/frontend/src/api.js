@@ -93,20 +93,20 @@ export const createRoom = async (roomId, roomType) => {
     return res.json();
 };
 
-export const assignRoom = async (id, patientName) => {
+export const assignRoom = async (id, patientName, roomType) => {
     const res = await fetch(`${API_BASE}/rooms`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: id, action: 'assign', patientName }),
+        body: JSON.stringify({ roomId: id, action: 'assign', patientName, roomType }),
     });
     return res.json();
 };
 
-export const freeRoom = async (id) => {
+export const freeRoom = async (id, roomType) => {
     const res = await fetch(`${API_BASE}/rooms`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: id, action: 'free' }),
+        body: JSON.stringify({ roomId: id, action: 'free', roomType }),
     });
     return res.json();
 };
@@ -228,11 +228,11 @@ export const createTest = async (test) => {
     return res.json();
 };
 
-export const updateTest = async (testId, result) => {
+export const updateTest = async (testId, status) => {
     const res = await fetch(`${API_BASE}/lab`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ testId, result }),
+        body: JSON.stringify({ testId, status }),
     });
     return res.json();
 };

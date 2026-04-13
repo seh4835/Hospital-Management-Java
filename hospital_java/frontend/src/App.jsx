@@ -55,30 +55,32 @@ function App() {
           <h2>Sanctuary Health</h2>
         </div>
         <nav className="sidebar-nav">
-          {[
-            { key: 'Dashboard', label: 'Dashboard' },
-            { key: 'Patients', label: 'Patients' },
-            { key: 'Doctors', label: 'Doctors' },
-            { key: 'Appointments', label: 'Schedule' },
-            { key: 'Beds', label: 'Hospital Beds' },
-            { key: 'OTRooms', label: 'OT Rooms' },
-            { key: 'Records', label: 'Medical Records' },
-            { key: 'Billing', label: 'Billing' },
-            { key: 'Pharmacy', label: 'Pharmacy' },
-            { key: 'Lab', label: 'Lab Tests' },
-            { key: 'Operations', label: 'Operations' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              className={`nav-btn ${activeTab === tab.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="icon-dot"></span>
-                {tab.label}
-              </div>
-            </button>
-          ))}
+          <div style={{ height: 'calc(100vh - 100px)', overflowY: 'auto', paddingRight: '5px' }}>
+            {[
+              { key: 'Dashboard', label: 'Dashboard' },
+              { key: 'Patients', label: 'Patients' },
+              { key: 'Doctors', label: 'Doctors' },
+              { key: 'Appointments', label: 'Schedule' },
+              { key: 'Operations', label: 'Operations' },
+              { key: 'Beds', label: 'Hospital Beds' },
+              { key: 'OTRooms', label: 'OT Rooms' },
+              { key: 'Records', label: 'Medical Records' },
+              { key: 'Billing', label: 'Billing' },
+              { key: 'Pharmacy', label: 'Pharmacy' },
+              { key: 'Lab', label: 'Lab Tests' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                className={`nav-btn ${activeTab === tab.key ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="icon-dot"></span>
+                  {tab.label}
+                </div>
+              </button>
+            ))}
+          </div>
         </nav>
       </aside>
 
@@ -102,12 +104,12 @@ function App() {
         {activeTab === 'Patients' && <PatientsView patients={patients} reload={loadData} />}
         {activeTab === 'Doctors' && <DoctorsView doctors={doctors} reload={loadData} />}
         {activeTab === 'Appointments' && <AppointmentsView appointments={appointments} patients={patients} doctors={doctors} reload={loadData} />}
-        {activeTab === 'Beds' && <BedsView beds={beds} reload={loadData} />}
-        {activeTab === 'OTRooms' && <OTRoomsView otRooms={otRooms} reload={loadData} />}
+        {activeTab === 'Beds' && <BedsView beds={beds} reload={loadData} patients={patients} />}
+        {activeTab === 'OTRooms' && <OTRoomsView otRooms={otRooms} reload={loadData} patients={patients} />}
         {activeTab === 'Records' && <MedicalRecordsView records={records} reload={loadData} patients={patients} doctors={doctors} />}
-        {activeTab === 'Billing' && <BillingView bills={bills} reload={loadData} />}
+        {activeTab === 'Billing' && <BillingView bills={bills} reload={loadData} patients={patients} />}
         {activeTab === 'Pharmacy' && <PharmacyView medicines={medicines} reload={loadData} />}
-        {activeTab === 'Lab' && <LabView tests={tests} reload={loadData} />}
+        {activeTab === 'Lab' && <LabView tests={tests} reload={loadData} patients={patients} />}
         {activeTab === 'Operations' && <OperationsView operations={operations} patients={patients} doctors={doctors} otRooms={otRooms} reload={loadData} />}
       </main>
     </div>
@@ -237,7 +239,7 @@ function Dashboard({ patients, doctors, appointments, beds = [], records = [], b
 
 // ==================== PATIENTS VIEW ====================
 function PatientsView({ patients, reload }) {
-  const [form, setForm] = useState({ patientId: '', name: '', age: '', disease: '' });
+  const [form, setForm] = useState({ name: '', age: '', disease: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState('name');
 
@@ -247,7 +249,7 @@ function PatientsView({ patients, reload }) {
     if (res && res.status === 'error') {
       alert(res.message);
     } else {
-      setForm({ patientId: '', name: '', age: '', disease: '' });
+      setForm({ name: '', age: '', disease: '' });
       reload();
     }
   };
@@ -280,10 +282,6 @@ function PatientsView({ patients, reload }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group">
-            <label>ID</label>
-            <input required type="number" placeholder="ID" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} />
-          </div>
           <div className="input-group">
             <label>Name</label>
             <input required type="text" placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -345,15 +343,17 @@ function PatientsView({ patients, reload }) {
 }
 
 // ==================== DOCTORS VIEW ====================
+// ==================== DOCTORS VIEW ====================
 function DoctorsView({ doctors, reload }) {
-  const [form, setForm] = useState({ doctorId: '', name: '', age: '', specialization: '' });
+  const [form, setForm] = useState({ name: '', age: '', specialization: '' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     const res = await api.createDoctor(form);
     if (res && res.status === 'error') alert(res.message);
     else {
-      setForm({ doctorId: '', name: '', age: '', specialization: '' });
+      setForm({ name: '', age: '', specialization: '' });
       reload();
     }
   };
@@ -365,16 +365,16 @@ function DoctorsView({ doctors, reload }) {
     }
   };
 
+  const filtered = doctors.filter(d => 
+    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="page-container">
       <h1 className="page-title">Medical Staff</h1>
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group">
-            <label>Doc ID</label>
-            <input required type="number" placeholder="ID" value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} />
-          </div>
           <div className="input-group">
             <label>Name</label>
             <input required type="text" placeholder="Dr. Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -392,6 +392,15 @@ function DoctorsView({ doctors, reload }) {
       </div>
 
       <div className="table-container">
+        <div style={{ padding: '15px 20px', borderBottom: '1px solid #E2E8F0' }}>
+          <input
+            type="text"
+            placeholder="Search doctor by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}
+          />
+        </div>
         <table>
           <thead>
             <tr>
@@ -403,7 +412,7 @@ function DoctorsView({ doctors, reload }) {
             </tr>
           </thead>
           <tbody>
-            {doctors.map((d, i) => (
+            {filtered.map((d, i) => (
               <tr key={i}>
                 <td>{d.doctorId}</td>
                 <td>Dr. {d.name}</td>
@@ -423,14 +432,14 @@ function DoctorsView({ doctors, reload }) {
 
 // ==================== APPOINTMENTS VIEW ====================
 function AppointmentsView({ appointments, patients, doctors, reload }) {
-  const [form, setForm] = useState({ appointmentId: '', patientId: '', doctorId: '', date: '' });
+  const [form, setForm] = useState({ patientId: '', doctorId: '', date: '' });
 
   const submit = async (e) => {
     e.preventDefault();
     const res = await api.createAppointment(form);
     if (res && res.status === 'error') alert(res.message);
     else {
-      setForm({ appointmentId: '', patientId: '', doctorId: '', date: '' });
+      setForm({ patientId: '', doctorId: '', date: '' });
       reload();
     }
   };
@@ -448,10 +457,6 @@ function AppointmentsView({ appointments, patients, doctors, reload }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group">
-            <label>Appt ID</label>
-            <input required type="number" placeholder="ID" value={form.appointmentId} onChange={(e) => setForm({ ...form, appointmentId: e.target.value })} />
-          </div>
           <div className="input-group">
             <label>Patient</label>
             <select required value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}>
@@ -505,26 +510,25 @@ function AppointmentsView({ appointments, patients, doctors, reload }) {
 }
 
 // ==================== BEDS VIEW ====================
-function BedsView({ beds, reload }) {
-  const [newRoomId, setNewRoomId] = useState('');
+function BedsView({ beds, reload, patients = [] }) {
+  const [assigningTo, setAssigningTo] = useState({});
 
   const submitRoom = async (e) => {
     e.preventDefault();
-    await api.createRoom(newRoomId, 'BED');
-    setNewRoomId('');
+    await api.createRoom(null, 'BED');
     reload();
   };
 
-  const handleAssign = async (id) => {
-    const name = window.prompt("Assign bed to patient name:");
+  const handleAssign = async (id, name) => {
     if (name) {
-      await api.assignRoom(id, name);
+      await api.assignRoom(id, name, 'BED');
+      setAssigningTo({ ...assigningTo, [id]: undefined });
       reload();
     }
   };
 
   const handleFree = async (id) => {
-    await api.freeRoom(id);
+    await api.freeRoom(id, 'BED');
     reload();
   };
 
@@ -534,11 +538,7 @@ function BedsView({ beds, reload }) {
 
       <div className="form-card">
         <form onSubmit={submitRoom} className="data-form">
-          <div className="input-group">
-            <label>New Bed Room ID</label>
-            <input required type="number" placeholder="Enter ID" value={newRoomId} onChange={(e) => setNewRoomId(e.target.value)} />
-          </div>
-          <button type="submit" className="primary-btn">Add Bed</button>
+          <button type="submit" className="primary-btn">Add New Bed</button>
         </form>
       </div>
 
@@ -564,11 +564,25 @@ function BedsView({ beds, reload }) {
                     {r.occupied ? 'Occupied' : 'Available'}
                   </span>
                 </td>
-                <td>{r.patientName || '-'}</td>
                 <td>
-                  {!r.occupied ? (
-                    <button className="action-btn update-btn" onClick={() => handleAssign(r.roomId)}>Assign</button>
-                  ) : (
+                  <select 
+                    style={{ padding: '4px', borderRadius: '4px', border: '1px solid #CBD5E1' }}
+                    onChange={(e) => setAssigningTo({ ...assigningTo, [r.roomId]: e.target.value })}
+                    value={assigningTo[r.roomId] !== undefined ? assigningTo[r.roomId] : (r.patientName || '')}
+                  >
+                    <option value="">Select Patient</option>
+                    {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+                  </select>
+                </td>
+                <td style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    className="action-btn update-btn" 
+                    onClick={() => handleAssign(r.roomId, assigningTo[r.roomId] || r.patientName)}
+                    disabled={!assigningTo[r.roomId] && !r.patientName}
+                  >
+                    {r.occupied ? 'Update' : 'Assign'}
+                  </button>
+                  {r.occupied && (
                     <button className="action-btn delete-btn" onClick={() => handleFree(r.roomId)}>Free</button>
                   )}
                 </td>
@@ -582,26 +596,25 @@ function BedsView({ beds, reload }) {
 }
 
 // ==================== OT ROOMS VIEW ====================
-function OTRoomsView({ otRooms, reload }) {
-  const [newRoomId, setNewRoomId] = useState('');
+function OTRoomsView({ otRooms, reload, patients = [] }) {
+  const [assigningTo, setAssigningTo] = useState({});
 
   const submitRoom = async (e) => {
     e.preventDefault();
-    await api.createRoom(newRoomId, 'OT');
-    setNewRoomId('');
+    await api.createRoom(null, 'OT');
     reload();
   };
 
-  const handleAssign = async (id) => {
-    const name = window.prompt("Assign OT room to patient name:");
+  const handleAssign = async (id, name) => {
     if (name) {
-      await api.assignRoom(id, name);
+      await api.assignRoom(id, name, 'OT'); // Pass type hint
+      setAssigningTo({ ...assigningTo, [id]: undefined });
       reload();
     }
   };
 
   const handleFree = async (id) => {
-    await api.freeRoom(id);
+    await api.freeRoom(id, 'OT');
     reload();
   };
 
@@ -611,10 +624,6 @@ function OTRoomsView({ otRooms, reload }) {
 
       <div className="form-card">
         <form onSubmit={submitRoom} className="data-form">
-          <div className="input-group">
-            <label>New OT Room ID</label>
-            <input required type="number" placeholder="Enter ID" value={newRoomId} onChange={(e) => setNewRoomId(e.target.value)} />
-          </div>
           <button type="submit" className="primary-btn">Add OT Room</button>
         </form>
       </div>
@@ -641,11 +650,25 @@ function OTRoomsView({ otRooms, reload }) {
                     {r.occupied ? 'In Use' : 'Available'}
                   </span>
                 </td>
-                <td>{r.patientName || '-'}</td>
                 <td>
-                  {!r.occupied ? (
-                    <button className="action-btn update-btn" onClick={() => handleAssign(r.roomId)}>Assign</button>
-                  ) : (
+                  <select 
+                    style={{ padding: '4px', borderRadius: '4px', border: '1px solid #CBD5E1' }}
+                    onChange={(e) => setAssigningTo({ ...assigningTo, [r.roomId]: e.target.value })}
+                    value={assigningTo[r.roomId] !== undefined ? assigningTo[r.roomId] : (r.patientName || '')}
+                  >
+                    <option value="">Select Patient</option>
+                    {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+                  </select>
+                </td>
+                <td style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    className="action-btn update-btn" 
+                    onClick={() => handleAssign(r.roomId, assigningTo[r.roomId] || r.patientName)}
+                    disabled={!assigningTo[r.roomId] && !r.patientName}
+                  >
+                    {r.occupied ? 'Update' : 'Assign'}
+                  </button>
+                  {r.occupied && (
                     <button className="action-btn delete-btn" onClick={() => handleFree(r.roomId)}>Free</button>
                   )}
                 </td>
@@ -660,14 +683,14 @@ function OTRoomsView({ otRooms, reload }) {
 
 // ==================== MEDICAL RECORDS VIEW ====================
 function MedicalRecordsView({ records, reload, patients, doctors }) {
-  const [form, setForm] = useState({ recordId: '', patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
+  const [form, setForm] = useState({ patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
 
   const submit = async (e) => {
     e.preventDefault();
     const res = await api.createRecord(form);
     if (res && res.status === 'error') alert(res.message);
     else {
-      setForm({ recordId: '', patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
+      setForm({ patientName: '', doctorName: '', diagnosis: '', treatment: '', date: '' });
       reload();
     }
   };
@@ -694,10 +717,6 @@ function MedicalRecordsView({ records, reload, patients, doctors }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group">
-            <label>Record ID</label>
-            <input required type="number" placeholder="ID" value={form.recordId} onChange={(e) => setForm({ ...form, recordId: e.target.value })} />
-          </div>
           <div className="input-group">
             <label>Patient</label>
             <select required value={form.patientName} onChange={(e) => setForm({ ...form, patientName: e.target.value })}>
@@ -760,14 +779,14 @@ function MedicalRecordsView({ records, reload, patients, doctors }) {
 }
 
 // ==================== BILLING VIEW ====================
-function BillingView({ bills, reload }) {
-  const [form, setForm] = useState({ billId: '', patientName: '', treatment: '', amount: '', insuranceStatus: 'Paid' });
+function BillingView({ bills, reload, patients = [] }) {
+  const [form, setForm] = useState({ patientName: '', treatment: '', amount: '', insuranceStatus: 'Paid' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     await api.createBill(form);
-    setForm({ billId: '', patientName: '', treatment: '', amount: '', insuranceStatus: 'Paid' });
+    setForm({ patientName: '', treatment: '', amount: '', insuranceStatus: 'Paid' });
     reload();
   };
 
@@ -781,8 +800,13 @@ function BillingView({ bills, reload }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group"><label>Bill ID</label><input required type="number" value={form.billId} onChange={e => setForm({ ...form, billId: e.target.value })} /></div>
-          <div className="input-group"><label>Patient</label><input required type="text" value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })} /></div>
+          <div className="input-group">
+            <label>Patient</label>
+            <select required value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}>
+              <option value="">Select Patient</option>
+              {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+            </select>
+          </div>
           <div className="input-group"><label>Treatment</label><input required type="text" value={form.treatment} onChange={e => setForm({ ...form, treatment: e.target.value })} /></div>
           <div className="input-group"><label>Amount ($)</label><input required type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></div>
           <div className="input-group">
@@ -840,13 +864,13 @@ function BillingView({ bills, reload }) {
 
 // ==================== PHARMACY VIEW ====================
 function PharmacyView({ medicines, reload }) {
-  const [form, setForm] = useState({ medicineId: '', name: '', stock: '', price: '' });
+  const [form, setForm] = useState({ name: '', stock: '', price: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     await api.createMedicine(form);
-    setForm({ medicineId: '', name: '', stock: '', price: '' });
+    setForm({ name: '', stock: '', price: '' });
     reload();
   };
 
@@ -870,7 +894,6 @@ function PharmacyView({ medicines, reload }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group"><label>Med ID</label><input required type="number" value={form.medicineId} onChange={e => setForm({ ...form, medicineId: e.target.value })} /></div>
           <div className="input-group"><label>Medicine Name</label><input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
           <div className="input-group"><label>Stock Qty</label><input required type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></div>
           <div className="input-group"><label>Price ($)</label><input required type="number" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></div>
@@ -923,22 +946,19 @@ function PharmacyView({ medicines, reload }) {
 
 // ==================== LAB VIEW ====================
 function LabView({ tests, reload, patients = [] }) {
-  const [form, setForm] = useState({ testId: '', patientName: '', testType: '', result: '', date: '', time: '' });
+  const [form, setForm] = useState({ patientName: '', testType: '', status: 'Pending', date: '', time: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     await api.createTest(form);
-    setForm({ testId: '', patientName: '', testType: '', result: '', date: '', time: '' });
+    setForm({ patientName: '', testType: '', status: 'Pending', date: '', time: '' });
     reload();
   };
 
-  const handleUpdate = async (t) => {
-    const newResult = window.prompt(`Update Result for ${t.patientName} (${t.testType}):`, t.result);
-    if (newResult !== null) {
-      await api.updateTest(t.testId, newResult);
-      reload();
-    }
+  const handleUpdate = async (id, newStatus) => {
+    await api.updateTest(id, newStatus);
+    reload();
   };
 
   const filteredTests = tests.filter(t =>
@@ -951,7 +971,6 @@ function LabView({ tests, reload, patients = [] }) {
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group"><label>Test ID</label><input required type="number" value={form.testId} onChange={e => setForm({ ...form, testId: e.target.value })} /></div>
           <div className="input-group">
             <label>Patient</label>
             <select required value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}>
@@ -960,7 +979,15 @@ function LabView({ tests, reload, patients = [] }) {
             </select>
           </div>
           <div className="input-group"><label>Type</label><input required type="text" placeholder="e.g. Blood Test" value={form.testType} onChange={e => setForm({ ...form, testType: e.target.value })} /></div>
-          <div className="input-group"><label>Result</label><input required type="text" placeholder="Result/Status" value={form.result} onChange={e => setForm({ ...form, result: e.target.value })} /></div>
+          <div className="input-group">
+            <label>Status</label>
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
           <div className="input-group"><label>Date</label><input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
           <button type="submit" className="primary-btn">Save Report</button>
         </form>
@@ -983,7 +1010,7 @@ function LabView({ tests, reload, patients = [] }) {
               <th>ID</th>
               <th>Patient</th>
               <th>Test Type</th>
-              <th>Result</th>
+              <th>Status</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
@@ -994,10 +1021,26 @@ function LabView({ tests, reload, patients = [] }) {
                 <td>{t.testId}</td>
                 <td>{t.patientName}</td>
                 <td>{t.testType}</td>
-                <td><span className="status-badge status-info">{t.result}</span></td>
+                <td>
+                  <select 
+                    value={t.status || 'Pending'} 
+                    onChange={(e) => handleUpdate(t.testId, e.target.value)}
+                    className="status-dropdown"
+                    style={{
+                      padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
+                      backgroundColor: t.status === 'Completed' ? '#F0FDF4' : t.status === 'In Progress' ? '#FEFCE8' : '#F8FAFC',
+                      color: t.status === 'Completed' ? '#166534' : t.status === 'In Progress' ? '#854D0E' : '#475569'
+                    }}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </td>
                 <td>{t.date}</td>
                 <td>
-                  <button className="action-btn" style={{ backgroundColor: '#0D9488' }} onClick={() => handleUpdate(t)}>Update</button>
+                  <button className="action-btn delete-btn" onClick={() => api.deleteTest(t.testId).then(reload)}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -1013,7 +1056,7 @@ function LabView({ tests, reload, patients = [] }) {
 
 // ==================== OPERATIONS VIEW ====================
 function OperationsView({ operations, reload, patients = [], doctors = [], otRooms = [] }) {
-  const [form, setForm] = useState({ operationId: '', patientName: '', doctorName: '', roomId: '', date: '', time: '' });
+  const [form, setForm] = useState({ patientName: '', doctorName: '', roomId: '', date: '', time: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const submit = async (e) => {
@@ -1022,21 +1065,15 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
     if (res && res.status === 'error') {
       alert(res.message);
     } else {
-      setForm({ operationId: '', patientName: '', doctorName: '', roomId: '', date: '', time: '' });
+      setForm({ patientName: '', doctorName: '', roomId: '', date: '', time: '' });
       reload();
     }
   };
 
-  const updateStatus = async (id, current) => {
-    const statuses = ['Scheduled', 'In Progress', 'Completed'];
-    const index = statuses.indexOf(current);
-    const nextStatus = statuses[(index + 1) % statuses.length];
-
-    if (window.confirm(`Update status from ${current} to ${nextStatus}?`)) {
-      await api.updateOperationStatus(id, nextStatus);
-      if (nextStatus === 'Completed') alert("Operation completed. Room has been freed.");
-      reload();
-    }
+  const updateStatus = async (id, newStatus) => {
+    await api.updateOperationStatus(id, newStatus);
+    if (newStatus === 'Completed') alert("Operation completed. Room has been freed.");
+    reload();
   };
 
   const filteredOps = operations.filter(op =>
@@ -1049,7 +1086,6 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
 
       <div className="form-card">
         <form onSubmit={submit} className="data-form">
-          <div className="input-group"><label>ID</label><input required type="number" value={form.operationId} onChange={e => setForm({ ...form, operationId: e.target.value })} /></div>
           <div className="input-group">
             <label>Patient</label>
             <select required value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}>
@@ -1106,16 +1142,24 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
                 <td>{op.patientName}</td>
                 <td>Dr. {op.doctorName}</td>
                 <td><span className="status-badge status-warning">Room {op.roomId}</span></td>
-                <td>
-                  <span className={`status-badge ${op.status === 'Completed' ? 'status-available' :
-                      op.status === 'In Progress' ? 'status-warning' : 'status-info'
-                    }`}>
-                    {op.status || 'Scheduled'}
-                  </span>
+<td>
+                  <select 
+                    value={op.status || 'Waiting'} 
+                    onChange={(e) => updateStatus(op.operationId, e.target.value)}
+                    className="status-dropdown"
+                    style={{
+                      padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
+                      backgroundColor: op.status === 'Completed' ? '#F0FDF4' : op.status === 'Running' ? '#FEFCE8' : '#F8FAFC',
+                      color: op.status === 'Completed' ? '#166534' : op.status === 'Running' ? '#854D0E' : '#475569'
+                    }}
+                  >
+                    <option value="Waiting">Waiting</option>
+                    <option value="Running">Running</option>
+                    <option value="Completed">Completed</option>
+                  </select>
                 </td>
                 <td>{op.date}</td>
                 <td style={{ display: 'flex', gap: '8px' }}>
-                  <button className="action-btn" style={{ backgroundColor: '#0D9488' }} onClick={() => updateStatus(op.operationId, op.status || 'Scheduled')}>Update</button>
                   <button className="action-btn delete-btn" onClick={() => api.deleteOperation(op.operationId).then(reload)}>Cancel</button>
                 </td>
               </tr>

@@ -22,6 +22,13 @@ public class AppointmentDAO {
         return collection.find(new Document("appointmentId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("appointmentId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("appointmentId") + 1;
+    }
+
     // ---------------- CREATE ----------------
     public void addAppointment(Appointment a) {
 

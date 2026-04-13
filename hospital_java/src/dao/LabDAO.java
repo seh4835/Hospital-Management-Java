@@ -20,6 +20,13 @@ public class LabDAO {
         return collection.find(new Document("testId", id)).first() != null;
     }
 
+    // ---------------- AUTO-ID GENERATION ----------------
+    public int getNextId() {
+        Document lastDoc = collection.find().sort(new Document("testId", -1)).first();
+        if (lastDoc == null) return 1;
+        return lastDoc.getInteger("testId") + 1;
+    }
+
     // ---------------- ADD TEST ----------------
     public void addTest(TestRecord test) {
 
@@ -31,7 +38,7 @@ public class LabDAO {
         Document doc = new Document("testId", test.getTestId())
                 .append("patientName", test.getPatientName())
                 .append("testType", test.getTestType())
-                .append("result", test.getResult())
+                .append("status", test.getStatus())
                 .append("date", test.getDate())
                 .append("time", test.getTime()); // ✅ NEW
 
@@ -79,8 +86,8 @@ public class LabDAO {
         }
     }
 
-    // ---------------- UPDATE RESULT ----------------
-    public void updateTest(int id, String newResult) {
+    // ---------------- UPDATE STATUS ----------------
+    public void updateTest(int id, String newStatus) {
 
         if (!exists(id)) {
             System.out.println("Test not found!");
@@ -89,9 +96,9 @@ public class LabDAO {
 
         collection.updateOne(
                 new Document("testId", id),
-                new Document("$set", new Document("result", newResult)));
+                new Document("$set", new Document("status", newStatus)));
 
-        System.out.println("Test result updated successfully!");
+        System.out.println("Test status updated successfully!");
     }
 
     // ---------------- DELETE TEST ----------------
