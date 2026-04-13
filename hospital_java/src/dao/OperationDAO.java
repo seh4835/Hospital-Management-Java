@@ -45,6 +45,11 @@ public class OperationDAO {
             throw new Exception("Operating Room ID " + op.getRoomId() + " does not exist!");
         }
 
+        String roomType = roomDAO.getRoomType(op.getRoomId());
+        if (!"OT".equals(roomType)) {
+            throw new Exception("Room " + op.getRoomId() + " is not an OT Room! Please select an OT Room.");
+        }
+
         if (roomDAO.isOccupied(op.getRoomId())) {
             throw new Exception("Operating Room " + op.getRoomId() + " is already occupied!");
         }

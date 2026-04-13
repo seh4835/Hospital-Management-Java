@@ -20,7 +20,7 @@ public class RoomDAO {
     }
 
     // ---------------- ADD ROOM ----------------
-    public void addRoom(int roomId) {
+    public void addRoom(int roomId, String roomType) {
 
         if (exists(roomId)) {
             System.out.println("Room already exists!");
@@ -29,7 +29,8 @@ public class RoomDAO {
 
         Document doc = new Document("roomId", roomId)
                 .append("occupied", false)
-                .append("patientName", "");
+                .append("patientName", "")
+                .append("roomType", roomType);
 
         collection.insertOne(doc);
         System.out.println("Room added successfully!");
@@ -51,6 +52,15 @@ public class RoomDAO {
         return list;
     }
 
+    // ---------------- GET ROOMS BY TYPE ----------------
+    public java.util.List<Document> getRoomsByType(String type) {
+        java.util.List<Document> list = new java.util.ArrayList<>();
+        for (Document doc : collection.find(new Document("roomType", type))) {
+            list.add(doc);
+        }
+        return list;
+    }
+
     // ---------------- CHECK IF ROOM IS OCCUPIED ----------------
     public boolean isOccupied(int roomId) {
 
@@ -62,6 +72,13 @@ public class RoomDAO {
         }
 
         return room.getBoolean("occupied");
+    }
+
+    // ---------------- GET ROOM TYPE ----------------
+    public String getRoomType(int roomId) {
+        Document room = collection.find(new Document("roomId", roomId)).first();
+        if (room == null) return null;
+        return room.getString("roomType");
     }
 
     // ---------------- ASSIGN ROOM ----------------
@@ -101,9 +118,34 @@ public class RoomDAO {
         System.out.println("Room freed successfully!");
     }
 
-    // ---------------- FIND FIRST FREE ROOM ----------------
-    public int getAvailableRoom() {
+    // ---------------- FIND FIRST FREE BED ----------------
+    public int getAvailableBed() {
+        Document room = collection.find(
+                new Document("occupied", false).append("roomType", "BED")
+        ).first();
 
+        if (room != null) {
+            return room.getInteger("roomId");
+        }
+
+        return -1;
+    }
+
+    // ---------------- FIND FIRST FREE OT ROOM ----------------
+    public int getAvailableOT() {
+        Document room = collection.find(
+                new Document("occupied", false).append("roomType", "OT")
+        ).first();
+
+        if (room != null) {
+            return room.getInteger("roomId");
+        }
+
+        return -1;
+    }
+
+    // ---------------- FIND FIRST FREE ROOM (any type - legacy) ----------------
+    public int getAvailableRoom() {
         Document room = collection.find(new Document("occupied", false)).first();
 
         if (room != null) {

@@ -74,16 +74,21 @@ export const deleteAppointment = async (id) => {
     return res.json();
 };
 
-export const fetchRooms = async () => {
-    const res = await fetch(`${API_BASE}/rooms`);
+export const fetchBeds = async () => {
+    const res = await fetch(`${API_BASE}/rooms/beds`);
     return res.json();
 };
 
-export const createRoom = async (roomId) => {
+export const fetchOTRooms = async () => {
+    const res = await fetch(`${API_BASE}/rooms/ot`);
+    return res.json();
+};
+
+export const createRoom = async (roomId, roomType) => {
     const res = await fetch(`${API_BASE}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId }),
+        body: JSON.stringify({ roomId, roomType }),
     });
     return res.json();
 };

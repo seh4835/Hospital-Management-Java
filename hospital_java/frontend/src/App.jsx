@@ -7,7 +7,8 @@ function App() {
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [rooms, setRooms] = useState([]);
+  const [beds, setBeds] = useState([]);
+  const [otRooms, setOtRooms] = useState([]);
   const [records, setRecords] = useState([]);
   const [bills, setBills] = useState([]);
   const [medicines, setMedicines] = useState([]);
@@ -19,7 +20,8 @@ function App() {
       const p = await api.fetchPatients();
       const d = await api.fetchDoctors();
       const a = await api.fetchAppointments();
-      const r = await api.fetchRooms();
+      const bedsData = await api.fetchBeds();
+      const otData = await api.fetchOTRooms();
       const recs = await api.fetchRecords();
       const b = await api.fetchBills();
       const m = await api.fetchMedicines();
@@ -29,7 +31,8 @@ function App() {
       setPatients(p || []);
       setDoctors(d || []);
       setAppointments(a || []);
-      setRooms(r || []);
+      setBeds(bedsData || []);
+      setOtRooms(otData || []);
       setRecords(recs || []);
       setBills(b || []);
       setMedicines(m || []);
@@ -57,7 +60,8 @@ function App() {
             { key: 'Patients', label: 'Patients' },
             { key: 'Doctors', label: 'Doctors' },
             { key: 'Appointments', label: 'Schedule' },
-            { key: 'Rooms', label: 'Rooms' },
+            { key: 'Beds', label: 'Hospital Beds' },
+            { key: 'OTRooms', label: 'OT Rooms' },
             { key: 'Records', label: 'Medical Records' },
             { key: 'Billing', label: 'Billing' },
             { key: 'Pharmacy', label: 'Pharmacy' },
@@ -85,7 +89,7 @@ function App() {
             patients={patients}
             doctors={doctors}
             appointments={appointments}
-            rooms={rooms}
+            beds={beds}
             records={records}
             bills={bills}
             medicines={medicines}
@@ -98,20 +102,21 @@ function App() {
         {activeTab === 'Patients' && <PatientsView patients={patients} reload={loadData} />}
         {activeTab === 'Doctors' && <DoctorsView doctors={doctors} reload={loadData} />}
         {activeTab === 'Appointments' && <AppointmentsView appointments={appointments} patients={patients} doctors={doctors} reload={loadData} />}
-        {activeTab === 'Rooms' && <RoomsView rooms={rooms} reload={loadData} />}
+        {activeTab === 'Beds' && <BedsView beds={beds} reload={loadData} />}
+        {activeTab === 'OTRooms' && <OTRoomsView otRooms={otRooms} reload={loadData} />}
         {activeTab === 'Records' && <MedicalRecordsView records={records} reload={loadData} patients={patients} doctors={doctors} />}
         {activeTab === 'Billing' && <BillingView bills={bills} reload={loadData} />}
         {activeTab === 'Pharmacy' && <PharmacyView medicines={medicines} reload={loadData} />}
         {activeTab === 'Lab' && <LabView tests={tests} reload={loadData} />}
-        {activeTab === 'Operations' && <OperationsView operations={operations} patients={patients} doctors={doctors} rooms={rooms} reload={loadData} />}
+        {activeTab === 'Operations' && <OperationsView operations={operations} patients={patients} doctors={doctors} otRooms={otRooms} reload={loadData} />}
       </main>
     </div>
   );
 }
 
 // ==================== DASHBOARD ====================
-function Dashboard({ patients, doctors, appointments, rooms = [], records = [], bills = [], medicines = [], tests = [], operations = [], reload, setActiveTab }) {
-  const availableRooms = rooms.filter(r => !r.occupied).length;
+function Dashboard({ patients, doctors, appointments, beds = [], records = [], bills = [], medicines = [], tests = [], operations = [], reload, setActiveTab }) {
+  const availableBeds = beds.filter(r => !r.occupied).length;
   const totalRevenue = bills.reduce((acc, b) => acc + (parseFloat(b.amount) || 0), 0);
   const lowStock = medicines.filter(m => m.stock <= 10).length;
 
@@ -155,9 +160,9 @@ function Dashboard({ patients, doctors, appointments, rooms = [], records = [], 
           <h3>Pending Billing</h3>
           <p className="stat-number">${totalRevenue.toLocaleString()}</p>
         </div>
-        <div className="stat-card" onClick={() => setActiveTab('Rooms')} style={{ cursor: 'pointer' }}>
-          <h3>Rooms Available</h3>
-          <p className="stat-number">{availableRooms}</p>
+        <div className="stat-card" onClick={() => setActiveTab('Beds')} style={{ cursor: 'pointer' }}>
+          <h3>Beds Available</h3>
+          <p className="stat-number">{availableBeds}</p>
         </div>
         <div className="stat-card" onClick={() => setActiveTab('Lab')} style={{ cursor: 'pointer' }}>
           <h3>Lab Tests</h3>
@@ -499,19 +504,19 @@ function AppointmentsView({ appointments, patients, doctors, reload }) {
   );
 }
 
-// ==================== ROOMS VIEW ====================
-function RoomsView({ rooms, reload }) {
+// ==================== BEDS VIEW ====================
+function BedsView({ beds, reload }) {
   const [newRoomId, setNewRoomId] = useState('');
 
   const submitRoom = async (e) => {
     e.preventDefault();
-    await api.createRoom(newRoomId);
+    await api.createRoom(newRoomId, 'BED');
     setNewRoomId('');
     reload();
   };
 
   const handleAssign = async (id) => {
-    const name = window.prompt("Assign room to patient name:");
+    const name = window.prompt("Assign bed to patient name:");
     if (name) {
       await api.assignRoom(id, name);
       reload();
@@ -525,15 +530,15 @@ function RoomsView({ rooms, reload }) {
 
   return (
     <div className="page-container">
-      <h1 className="page-title">Room Management</h1>
+      <h1 className="page-title">Hospital Beds Management</h1>
 
       <div className="form-card">
         <form onSubmit={submitRoom} className="data-form">
           <div className="input-group">
-            <label>New Room ID</label>
+            <label>New Bed Room ID</label>
             <input required type="number" placeholder="Enter ID" value={newRoomId} onChange={(e) => setNewRoomId(e.target.value)} />
           </div>
-          <button type="submit" className="primary-btn">Add Room</button>
+          <button type="submit" className="primary-btn">Add Bed</button>
         </form>
       </div>
 
@@ -548,7 +553,7 @@ function RoomsView({ rooms, reload }) {
             </tr>
           </thead>
           <tbody>
-            {rooms.sort((a, b) => a.roomId - b.roomId).map((r, i) => (
+            {beds.sort((a, b) => a.roomId - b.roomId).map((r, i) => (
               <tr key={i}>
                 <td>{r.roomId}</td>
                 <td>
@@ -557,6 +562,83 @@ function RoomsView({ rooms, reload }) {
                     background: r.occupied ? '#FEE2E2' : '#DCFCE7', color: r.occupied ? '#991B1B' : '#166534'
                   }}>
                     {r.occupied ? 'Occupied' : 'Available'}
+                  </span>
+                </td>
+                <td>{r.patientName || '-'}</td>
+                <td>
+                  {!r.occupied ? (
+                    <button className="action-btn update-btn" onClick={() => handleAssign(r.roomId)}>Assign</button>
+                  ) : (
+                    <button className="action-btn delete-btn" onClick={() => handleFree(r.roomId)}>Free</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ==================== OT ROOMS VIEW ====================
+function OTRoomsView({ otRooms, reload }) {
+  const [newRoomId, setNewRoomId] = useState('');
+
+  const submitRoom = async (e) => {
+    e.preventDefault();
+    await api.createRoom(newRoomId, 'OT');
+    setNewRoomId('');
+    reload();
+  };
+
+  const handleAssign = async (id) => {
+    const name = window.prompt("Assign OT room to patient name:");
+    if (name) {
+      await api.assignRoom(id, name);
+      reload();
+    }
+  };
+
+  const handleFree = async (id) => {
+    await api.freeRoom(id);
+    reload();
+  };
+
+  return (
+    <div className="page-container">
+      <h1 className="page-title">OT Rooms Management</h1>
+
+      <div className="form-card">
+        <form onSubmit={submitRoom} className="data-form">
+          <div className="input-group">
+            <label>New OT Room ID</label>
+            <input required type="number" placeholder="Enter ID" value={newRoomId} onChange={(e) => setNewRoomId(e.target.value)} />
+          </div>
+          <button type="submit" className="primary-btn">Add OT Room</button>
+        </form>
+      </div>
+
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Room ID</th>
+              <th>Status</th>
+              <th>Occupant</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {otRooms.sort((a, b) => a.roomId - b.roomId).map((r, i) => (
+              <tr key={i}>
+                <td>{r.roomId}</td>
+                <td>
+                  <span style={{
+                    padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold',
+                    background: r.occupied ? '#FEE2E2' : '#DCFCE7', color: r.occupied ? '#991B1B' : '#166534'
+                  }}>
+                    {r.occupied ? 'In Use' : 'Available'}
                   </span>
                 </td>
                 <td>{r.patientName || '-'}</td>
@@ -930,7 +1012,7 @@ function LabView({ tests, reload, patients = [] }) {
 }
 
 // ==================== OPERATIONS VIEW ====================
-function OperationsView({ operations, reload, patients = [], doctors = [], rooms = [] }) {
+function OperationsView({ operations, reload, patients = [], doctors = [], otRooms = [] }) {
   const [form, setForm] = useState({ operationId: '', patientName: '', doctorName: '', roomId: '', date: '', time: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -986,7 +1068,7 @@ function OperationsView({ operations, reload, patients = [], doctors = [], rooms
             <label>OT Room</label>
             <select required value={form.roomId} onChange={e => setForm({ ...form, roomId: e.target.value })}>
               <option value="">Select Room</option>
-              {rooms.map(r => <option key={r.roomId} value={r.roomId}>Room {r.roomId} {r.occupied ? '(In Use)' : ''}</option>)}
+              {otRooms.map(r => <option key={r.roomId} value={r.roomId}>Room {r.roomId} {r.occupied ? '(In Use)' : ''}</option>)}
             </select>
           </div>
           <div className="input-group"><label>Date</label><input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>

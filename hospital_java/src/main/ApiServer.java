@@ -48,6 +48,8 @@ public class ApiServer {
         server.createContext("/api/patients", new PatientHandler());
         server.createContext("/api/doctors", new DoctorHandler());
         server.createContext("/api/appointments", new AppointmentHandler());
+        server.createContext("/api/rooms/beds", new BedRoomHandler());
+        server.createContext("/api/rooms/ot", new OTRoomHandler());
         server.createContext("/api/rooms", new RoomHandler());
         server.createContext("/api/records", new RecordHandler());
         server.createContext("/api/billing", new BillingHandler());
@@ -266,11 +268,15 @@ public class ApiServer {
                     String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                     Document doc = Document.parse(body);
                     int rid = Integer.parseInt(doc.get("roomId").toString());
+                    String roomType = doc.getString("roomType");
 
+                    if (roomType == null || (!roomType.equals("BED") && !roomType.equals("OT"))) {
+                        throw new Exception("roomType must be 'BED' or 'OT'!");
+                    }
                     if (roomDAO.exists(rid)) {
                         throw new Exception("Room already exists!");
                     }
-                    roomDAO.addRoom(rid);
+                    roomDAO.addRoom(rid, roomType);
 
                     String response = "{\"status\":\"success\"}";
                     exchange.sendResponseHeaders(201, response.getBytes().length);
@@ -310,9 +316,9 @@ public class ApiServer {
                         if (!found)
                             throw new Exception("Patient not found!");
 
-                        int roomId = roomDAO.getAvailableRoom();
+                        int roomId = roomDAO.getAvailableBed();
                         if (roomId == -1)
-                            throw new Exception("No rooms available!");
+                            throw new Exception("No hospital beds available!");
                         roomDAO.assignRoom(roomId, patientName);
                     } else if ("discharge".equals(action)) {
                         String patientName = doc.getString("patientName");
@@ -325,6 +331,88 @@ public class ApiServer {
                     }
                     String response = "{\"status\":\"success\"}";
                     exchange.sendResponseHeaders(200, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
+            } catch (Exception e) {
+                String response = "{\"status\":\"error\", \"message\":\"" + e.getMessage() + "\"}";
+                exchange.sendResponseHeaders(400, response.getBytes().length);
+                OutputStream os = exchange.getResponseBody();
+                os.write(response.getBytes());
+                os.close();
+            }
+        }
+    }
+
+    // ==================== BED ROOM HANDLER ====================
+    static class BedRoomHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            setCORSAndHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod()))
+                return;
+            String method = exchange.getRequestMethod();
+
+            try {
+                if ("GET".equals(method)) {
+                    List<Document> beds = roomDAO.getRoomsByType("BED");
+                    StringBuilder json = new StringBuilder("[");
+                    for (int i = 0; i < beds.size(); i++) {
+                        json.append(beds.get(i).toJson());
+                        if (i < beds.size() - 1)
+                            json.append(",");
+                    }
+                    json.append("]");
+                    byte[] response = json.toString().getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response);
+                    os.close();
+                } else {
+                    String response = "{\"status\":\"error\", \"message\":\"Use /api/rooms for mutations\"}";
+                    exchange.sendResponseHeaders(405, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
+            } catch (Exception e) {
+                String response = "{\"status\":\"error\", \"message\":\"" + e.getMessage() + "\"}";
+                exchange.sendResponseHeaders(400, response.getBytes().length);
+                OutputStream os = exchange.getResponseBody();
+                os.write(response.getBytes());
+                os.close();
+            }
+        }
+    }
+
+    // ==================== OT ROOM HANDLER ====================
+    static class OTRoomHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            setCORSAndHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod()))
+                return;
+            String method = exchange.getRequestMethod();
+
+            try {
+                if ("GET".equals(method)) {
+                    List<Document> otRooms = roomDAO.getRoomsByType("OT");
+                    StringBuilder json = new StringBuilder("[");
+                    for (int i = 0; i < otRooms.size(); i++) {
+                        json.append(otRooms.get(i).toJson());
+                        if (i < otRooms.size() - 1)
+                            json.append(",");
+                    }
+                    json.append("]");
+                    byte[] response = json.toString().getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response);
+                    os.close();
+                } else {
+                    String response = "{\"status\":\"error\", \"message\":\"Use /api/rooms for mutations\"}";
+                    exchange.sendResponseHeaders(405, response.getBytes().length);
                     OutputStream os = exchange.getResponseBody();
                     os.write(response.getBytes());
                     os.close();
