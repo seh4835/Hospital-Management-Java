@@ -1048,7 +1048,7 @@ public class ApiServer {
                 try {
                     if (query != null && query.contains("id=")) {
                         int id = Integer.parseInt(query.split("id=")[1]);
-                        operationDAO.deleteOperation(id);
+                        operationDAO.deleteOperation(id, otRoomDAO);
                         String response = "{\"status\":\"success\"}";
                         exchange.sendResponseHeaders(200, response.getBytes().length);
                         OutputStream os = exchange.getResponseBody();

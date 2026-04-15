@@ -123,7 +123,7 @@ public class OperationDAO {
     }
 
     // ---------------- DELETE OPERATION ----------------
-    public void deleteOperation(int id) {
+    public void deleteOperation(int id, OTRoomDAO otRoomDAO) {
 
         Document op = collection.find(
                 new Document("operationId", id)
@@ -132,6 +132,14 @@ public class OperationDAO {
         if (op == null) {
             System.out.println("Operation not found!");
             return;
+        }
+
+        // Free the OT room before deleting the operation
+        try {
+            int roomId = Integer.parseInt(op.get("roomId").toString());
+            otRoomDAO.freeRoom(roomId);
+        } catch (Exception e) {
+            System.out.println("Warning: Could not free OT room during delete: " + e.getMessage());
         }
 
         collection.deleteOne(new Document("operationId", id));

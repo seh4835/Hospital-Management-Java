@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
 import * as api from './api';
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
+import {
+  LayoutDashboard, Users, UserRound, CalendarDays, Scissors,
+  BedDouble, DoorOpen, FileText, CreditCard, Pill, FlaskConical,
+  UserPlus, LogOut, RefreshCw, Activity, Bed, Stethoscope,
+  DollarSign, Microscope, PackageX, HeartPulse, CalendarCheck,
+  BarChart2, Zap, CheckCircle2, XCircle
+} from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -57,26 +68,26 @@ function App() {
         <nav className="sidebar-nav">
           <div style={{ height: 'calc(100vh - 100px)', overflowY: 'auto', paddingRight: '5px' }}>
             {[
-              { key: 'Dashboard', label: 'Dashboard' },
-              { key: 'Patients', label: 'Patients' },
-              { key: 'Doctors', label: 'Doctors' },
-              { key: 'Appointments', label: 'Schedule' },
-              { key: 'Operations', label: 'Operations' },
-              { key: 'Beds', label: 'Hospital Beds' },
-              { key: 'OTRooms', label: 'OT Rooms' },
-              { key: 'Records', label: 'Medical Records' },
-              { key: 'Billing', label: 'Billing' },
-              { key: 'Pharmacy', label: 'Pharmacy' },
-              { key: 'Lab', label: 'Lab Tests' },
-            ].map((tab) => (
+              { key: 'Dashboard',    label: 'Dashboard',       Icon: LayoutDashboard },
+              { key: 'Patients',     label: 'Patients',        Icon: Users },
+              { key: 'Doctors',      label: 'Doctors',         Icon: Stethoscope },
+              { key: 'Appointments', label: 'Schedule',        Icon: CalendarDays },
+              { key: 'Operations',   label: 'Operations',      Icon: Scissors },
+              { key: 'Beds',         label: 'Hospital Beds',   Icon: BedDouble },
+              { key: 'OTRooms',      label: 'OT Rooms',        Icon: DoorOpen },
+              { key: 'Records',      label: 'Medical Records', Icon: FileText },
+              { key: 'Billing',      label: 'Billing',         Icon: CreditCard },
+              { key: 'Pharmacy',     label: 'Pharmacy',        Icon: Pill },
+              { key: 'Lab',          label: 'Lab Tests',       Icon: FlaskConical },
+            ].map(({ key, label, Icon }) => (
               <button
-                key={tab.key}
-                className={`nav-btn ${activeTab === tab.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
+                key={key}
+                className={`nav-btn ${activeTab === key ? 'active' : ''}`}
+                onClick={() => setActiveTab(key)}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span className="icon-dot"></span>
-                  {tab.label}
+                  <Icon size={16} style={{ opacity: 0.85, flexShrink: 0 }} />
+                  {label}
                 </div>
               </button>
             ))}
@@ -92,6 +103,7 @@ function App() {
             doctors={doctors}
             appointments={appointments}
             beds={beds}
+            otRooms={otRooms}
             records={records}
             bills={bills}
             medicines={medicines}
@@ -116,121 +128,377 @@ function App() {
   );
 }
 
+// ==================== ANIMATED COUNTER ====================
+function AnimatedCounter({ value, prefix = '', suffix = '', duration = 1200 }) {
+  const [display, setDisplay] = useState(0);
+  const startRef = useRef(null);
+  const frameRef = useRef(null);
+
+  useEffect(() => {
+    const target = parseFloat(value) || 0;
+    const startTime = performance.now();
+    const animate = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(target * eased * 100) / 100);
+      if (progress < 1) frameRef.current = requestAnimationFrame(animate);
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [value, duration]);
+
+  return <span>{prefix}{typeof value === 'number' && value % 1 !== 0 ? display.toFixed(2) : Math.round(display)}{suffix}</span>;
+}
+
+// ==================== STAT CARD ====================
+function StatCard({ icon, label, value, prefix, suffix, color, gradient, onClick, delay = 0 }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+
+  return (
+    <div
+      className={`dash-stat-card ${visible ? 'dash-stat-card--visible' : ''}`}
+      style={{ '--card-color': color, '--card-gradient': gradient, cursor: onClick ? 'pointer' : 'default' }}
+      onClick={onClick}
+    >
+      <div className="dash-stat-icon">{icon}</div>
+      <div className="dash-stat-body">
+        <p className="dash-stat-label">{label}</p>
+        <p className="dash-stat-value" style={{ color }}>
+          {visible ? <AnimatedCounter value={value} prefix={prefix} suffix={suffix} /> : (prefix || '') + '0'}
+        </p>
+      </div>
+      <div className="dash-stat-glow" style={{ background: gradient }} />
+    </div>
+  );
+}
+
+// ==================== MINI DONUT ====================
+function MiniDonut({ used, total, color }) {
+  const free = Math.max(total - used, 0);
+  const data = [
+    { name: 'Used', value: used },
+    { name: 'Free', value: free || 1 },
+  ];
+  return (
+    <PieChart width={80} height={80}>
+      <Pie data={data} cx={35} cy={35} innerRadius={24} outerRadius={36} startAngle={90} endAngle={-270} dataKey="value">
+        <Cell fill={color} />
+        <Cell fill="#E2E8F0" />
+      </Pie>
+    </PieChart>
+  );
+}
+
 // ==================== DASHBOARD ====================
-function Dashboard({ patients, doctors, appointments, beds = [], records = [], bills = [], medicines = [], tests = [], operations = [], reload, setActiveTab }) {
+function Dashboard({ patients, doctors, appointments, beds = [], otRooms = [], records = [], bills = [], medicines = [], tests = [], operations = [], reload, setActiveTab }) {
   const availableBeds = beds.filter(r => !r.occupied).length;
+  const occupiedBeds = beds.length - availableBeds;
   const totalRevenue = bills.reduce((acc, b) => acc + (parseFloat(b.amount) || 0), 0);
   const lowStock = medicines.filter(m => m.stock <= 10).length;
+  const pendingBills = bills.filter(b => b.insuranceStatus === 'Pending').length;
+
+  // Chart: Bed Occupancy
+  const bedData = [
+    { name: 'Occupied', value: occupiedBeds, fill: '#E11D48' },
+    { name: 'Available', value: availableBeds || 0, fill: '#0D9488' },
+  ];
+
+  // Chart: Billing status breakdown
+  const billingData = [
+    { name: 'Paid', value: bills.filter(b => b.insuranceStatus === 'Paid').length, fill: '#0D9488' },
+    { name: 'Pending', value: pendingBills, fill: '#F59E0B' },
+    { name: 'Insurance', value: bills.filter(b => b.insuranceStatus === 'Insurance Claim').length, fill: '#6366F1' },
+  ];
+
+  // Chart: Lab test status — all 4 statuses separately
+  const labData = [
+    { name: 'Completed',   value: tests.filter(t => t.status === 'Completed').length,   fill: '#10B981' },
+    { name: 'In Progress', value: tests.filter(t => t.status === 'In Progress').length,  fill: '#3B82F6' },
+    { name: 'Pending',     value: tests.filter(t => t.status === 'Pending').length,      fill: '#F59E0B' },
+    { name: 'Cancelled',   value: tests.filter(t => t.status === 'Cancelled').length,   fill: '#EF4444' },
+  ];
+
+  // Chart: Module bar chart
+  const moduleData = [
+    { name: 'Patients', count: patients.length, fill: '#6366F1' },
+    { name: 'Doctors', count: doctors.length, fill: '#0D9488' },
+    { name: 'Appointments', count: appointments.length, fill: '#F59E0B' },
+    { name: 'Operations', count: operations.length, fill: '#E11D48' },
+    { name: 'Lab', count: tests.length, fill: '#10B981' },
+    { name: 'Bills', count: bills.length, fill: '#8B5CF6' },
+  ];
+
+  // Build activity feed
+  const activity = [
+    ...appointments.slice(0, 3).map(a => ({ type: 'Appointment', Icon: CalendarCheck, color: '#0369A1', text: `${a.patientName} → Dr. ${a.doctorName}`, time: a.date, badge: 'status-info' })),
+    ...operations.slice(0, 2).map(op => ({ type: 'Surgery', Icon: Scissors, color: '#92400E', text: `${op.patientName} — OT Room ${op.roomId}`, time: op.date, badge: 'status-warning' })),
+    ...tests.slice(0, 2).map(t => ({ type: 'Lab Test', Icon: FlaskConical, color: '#166534', text: `${t.patientName}: ${t.testType}`, time: t.date, badge: 'status-available' })),
+    ...bills.slice(0, 2).map(b => ({ type: 'Billing', Icon: CreditCard, color: '#5B21B6', text: `${b.patientName} — $${(parseFloat(b.amount)||0).toFixed(2)}`, time: b.insuranceStatus, badge: b.insuranceStatus === 'Paid' ? 'status-available' : 'status-warning' })),
+  ].slice(0, 8);
 
   const handleAdmit = async () => {
-    const patientName = window.prompt("Enter Patient Name to Admit:");
+    const patientName = window.prompt('Enter Patient Name to Admit:');
     if (!patientName) return;
     const res = await api.admitPatient(patientName);
-    if (res && res.status === 'error') {
-      alert(res.message);
-    } else {
-      alert(`Patient ${patientName} successfully admitted!`);
-      reload();
-    }
+    if (res && res.status === 'error') alert(res.message);
+    else { alert(`Patient ${patientName} successfully admitted!`); reload(); }
   };
 
   const handleDischarge = async () => {
-    const patientName = window.prompt("Enter Patient Name to Discharge:");
+    const patientName = window.prompt('Enter Patient Name to Discharge:');
     if (!patientName) return;
     const res = await api.dischargePatient(patientName);
-    if (res && res.status === 'error') {
-      alert(res.message);
-    } else {
-      alert(`Patient ${patientName} successfully discharged!`);
-      reload();
-    }
+    if (res && res.status === 'error') alert(res.message);
+    else { alert(`Patient ${patientName} successfully discharged!`); reload(); }
   };
+
+  const COLORS_PIE = ['#E11D48', '#0D9488'];
+  const BILL_COLORS = ['#0D9488', '#F59E0B', '#6366F1'];
 
   return (
     <div className="page-container">
-      <h1 className="page-title">Clinical Dashboard</h1>
-      <div className="dashboard-stats">
-        <div className="stat-card" onClick={() => setActiveTab('Patients')} style={{ cursor: 'pointer' }}>
-          <h3>Patients</h3>
-          <p className="stat-number">{patients.length}</p>
+      {/* Header */}
+      <div className="dash-header">
+        <div>
+          <h1 className="dash-title">Clinical Dashboard</h1>
+          <p className="dash-subtitle">Real-time hospital operations overview</p>
         </div>
-        <div className="stat-card" onClick={() => setActiveTab('Doctors')} style={{ cursor: 'pointer' }}>
-          <h3>Doctors</h3>
-          <p className="stat-number">{doctors.length}</p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Billing')} style={{ cursor: 'pointer' }}>
-          <h3>Pending Billing</h3>
-          <p className="stat-number">${totalRevenue.toLocaleString()}</p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Beds')} style={{ cursor: 'pointer' }}>
-          <h3>Beds Available</h3>
-          <p className="stat-number">{availableBeds}</p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Lab')} style={{ cursor: 'pointer' }}>
-          <h3>Lab Tests</h3>
-          <p className="stat-number">{tests.length}</p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Pharmacy')} style={{ cursor: 'pointer' }}>
-          <h3>Pharmacy Stock</h3>
-          <p className="stat-number" style={{ color: lowStock > 0 ? '#E11D48' : '#0D9488' }}>
-            {lowStock > 0 ? `${lowStock} Low` : 'Healthy'}
-          </p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Operations')} style={{ cursor: 'pointer' }}>
-          <h3>Scheduled Ops</h3>
-          <p className="stat-number">{operations.length}</p>
-        </div>
-        <div className="stat-card" onClick={() => setActiveTab('Appointments')} style={{ cursor: 'pointer' }}>
-          <h3>Appointments</h3>
-          <p className="stat-number">{appointments.length}</p>
+        <div className="dash-header-actions">
+          <button className="btn btn-primary dash-action-btn" onClick={handleAdmit}>
+            <UserPlus size={16} /> Admit Patient
+          </button>
+          <button className="btn btn-danger dash-action-btn" onClick={handleDischarge}>
+            <LogOut size={16} /> Discharge
+          </button>
+          <button className="btn btn-secondary dash-action-btn" onClick={reload}>
+            <RefreshCw size={16} /> Refresh
+          </button>
         </div>
       </div>
 
-
-      <div className="dashboard-actions">
-        <button className="btn btn-primary" onClick={handleAdmit}>Admit Patient</button>
-        <button className="btn btn-danger" onClick={handleDischarge}>Discharge Patient</button>
+      {/* KPI Cards */}
+      <div className="dash-stats-grid">
+        <StatCard
+          icon={<Users size={22} color="#fff" />} label="Total Patients" value={patients.length}
+          color="#6366F1" gradient="linear-gradient(135deg,#6366F1,#818CF8)"
+          onClick={() => setActiveTab('Patients')} delay={0}
+        />
+        <StatCard
+          icon={<Stethoscope size={22} color="#fff" />} label="Medical Staff" value={doctors.length}
+          color="#0D9488" gradient="linear-gradient(135deg,#0D9488,#2DD4BF)"
+          onClick={() => setActiveTab('Doctors')} delay={80}
+        />
+        <StatCard
+          icon={<BedDouble size={22} color="#fff" />} label="Beds Available" value={availableBeds}
+          color={availableBeds === 0 ? '#E11D48' : '#10B981'} gradient="linear-gradient(135deg,#10B981,#6EE7B7)"
+          onClick={() => setActiveTab('Beds')} delay={160}
+        />
+        <StatCard
+          icon={<DollarSign size={22} color="#fff" />} label="Total Revenue" value={totalRevenue} prefix="$"
+          color="#F59E0B" gradient="linear-gradient(135deg,#F59E0B,#FCD34D)"
+          onClick={() => setActiveTab('Billing')} delay={240}
+        />
+        <StatCard
+          icon={<Microscope size={22} color="#fff" />} label="Lab Tests" value={tests.length}
+          color="#10B981" gradient="linear-gradient(135deg,#10B981,#34D399)"
+          onClick={() => setActiveTab('Lab')} delay={320}
+        />
+        <StatCard
+          icon={<Pill size={22} color="#fff" />} label="Low Stock Items" value={lowStock}
+          color={lowStock > 0 ? '#E11D48' : '#0D9488'} gradient={lowStock > 0 ? 'linear-gradient(135deg,#E11D48,#FB7185)' : 'linear-gradient(135deg,#0D9488,#2DD4BF)'}
+          onClick={() => setActiveTab('Pharmacy')} delay={400}
+        />
+        <StatCard
+          icon={<HeartPulse size={22} color="#fff" />} label="Scheduled Ops" value={operations.length}
+          color="#8B5CF6" gradient="linear-gradient(135deg,#8B5CF6,#C4B5FD)"
+          onClick={() => setActiveTab('Operations')} delay={480}
+        />
+        <StatCard
+          icon={<CalendarDays size={22} color="#fff" />} label="Appointments" value={appointments.length}
+          color="#3B82F6" gradient="linear-gradient(135deg,#3B82F6,#93C5FD)"
+          onClick={() => setActiveTab('Appointments')} delay={560}
+        />
       </div>
 
-      <div className="recent-section">
-        <h2>Recent Hospital Activity</h2>
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Module</th>
-                <th>Activity Details</th>
-                <th>Reference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.slice(0, 2).map((a, i) => (
-                <tr key={`a-${i}`}>
-                  <td><span className="status-badge status-info">Appointment</span></td>
-                  <td>{a.patientName} scheduled with Dr. {a.doctorName}</td>
-                  <td>{a.date}</td>
-                </tr>
-              ))}
-              {operations.slice(0, 2).map((op, i) => (
-                <tr key={`op-${i}`}>
-                  <td><span className="status-badge status-warning">Surgery</span></td>
-                  <td>{op.patientName} OT Room {op.roomId}</td>
-                  <td>{op.date}</td>
-                </tr>
-              ))}
-              {tests.slice(0, 2).map((t, i) => (
-                <tr key={`t-${i}`}>
-                  <td><span className="status-badge status-available">Lab Test</span></td>
-                  <td>{t.patientName}: {t.testType}</td>
-                  <td>{t.result}</td>
-                </tr>
-              ))}
-              {appointments.length === 0 && tests.length === 0 && operations.length === 0 && (
-                <tr><td colSpan="3" style={{ textAlign: 'center', color: '#64748B', padding: '20px' }}>No recent hospital activity detected.</td></tr>
-              )}
-            </tbody>
-          </table>
+      {/* Charts Row */}
+      <div className="dash-charts-grid">
+
+        {/* Bed Occupancy Donut */}
+        <div className="dash-chart-card">
+          <div className="dash-chart-header">
+            <h3><BedDouble size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Bed Occupancy</h3>
+            <span className="dash-chart-badge">{beds.length} Total</span>
+          </div>
+          <div className="dash-chart-body">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={bedData} cx="50%" cy="50%"
+                  innerRadius={55} outerRadius={80}
+                  paddingAngle={3} dataKey="value"
+                  animationBegin={0} animationDuration={1000}
+                >
+                  {bedData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+                </Pie>
+                <Tooltip formatter={(v, n) => [`${v} beds`, n]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="dash-donut-center">
+              <span className="dash-donut-pct">
+                {beds.length ? Math.round((occupiedBeds / beds.length) * 100) : 0}%
+              </span>
+              <span className="dash-donut-label">Occupied</span>
+            </div>
+          </div>
         </div>
+
+        {/* Billing Breakdown */}
+        <div className="dash-chart-card">
+          <div className="dash-chart-header">
+            <h3><CreditCard size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Billing Status</h3>
+            <span className="dash-chart-badge">{bills.length} Bills</span>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={billingData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={1000}>
+                {billingData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Lab Test Status - horizontal bar chart for clarity */}
+        <div className="dash-chart-card">
+          <div className="dash-chart-header">
+            <h3><FlaskConical size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Lab Test Status</h3>
+            <span className="dash-chart-badge">{tests.length} Tests</span>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={labData}
+              layout="vertical"
+              margin={{ top: 8, right: 36, left: 8, bottom: 8 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={80} />
+              <Tooltip formatter={(v, n) => [`${v} test${v !== 1 ? 's' : ''}`, n]} />
+              <Bar dataKey="value" radius={[0, 6, 6, 0]} animationDuration={1000} label={{ position: 'right', fontSize: 12, fill: '#64748B' }}>
+                {labData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Module Overview Bar */}
+        <div className="dash-chart-card dash-chart-card--wide">
+          <div className="dash-chart-header">
+            <h3><BarChart2 size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Hospital Modules Overview</h3>
+            <span className="dash-chart-badge">All Modules</span>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={moduleData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={1200}>
+                {moduleData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Bottom Row: Maps Column + Activity Feed */}
+      <div className="dash-bottom-grid">
+
+        {/* Left column: Bed Map + OT Room Map stacked */}
+        <div className="dash-maps-col">
+
+          {/* Bed Map */}
+          <div className="dash-panel">
+            <div className="dash-chart-header">
+              <h3><BedDouble size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Bed Map</h3>
+              <span className="dash-chart-badge">{availableBeds} Free</span>
+            </div>
+            <div className="dash-bed-grid">
+              {beds.length === 0 && <p style={{ color: '#94A3B8', fontStyle: 'italic' }}>No beds registered.</p>}
+              {beds.sort((a, b) => a.roomId - b.roomId).map(bed => (
+                <div
+                  key={bed.roomId}
+                  className={`dash-bed-cell ${bed.occupied ? 'dash-bed-cell--occupied' : 'dash-bed-cell--free'}`}
+                  title={bed.occupied ? `Bed ${bed.roomId} — ${bed.patientName || 'Patient'}` : `Bed ${bed.roomId} — Available`}
+                  onClick={() => setActiveTab('Beds')}
+                >
+                  <span className="dash-bed-icon">{bed.occupied ? <Bed size={20}/> : <CheckCircle2 size={20}/>}</span>
+                  <span className="dash-bed-id">#{bed.roomId}</span>
+                  {bed.occupied && <span className="dash-bed-patient">{(bed.patientName || 'P').substring(0, 6)}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* OT Room Map */}
+          <div className="dash-panel">
+            <div className="dash-chart-header">
+              <h3><DoorOpen size={16} style={{marginRight:6,verticalAlign:'middle'}}/>OT Room Map</h3>
+              <span className="dash-chart-badge">{otRooms.filter(r => !r.occupied).length} Free</span>
+            </div>
+            <div className="dash-bed-grid">
+              {otRooms.length === 0 && <p style={{ color: '#94A3B8', fontStyle: 'italic' }}>No OT rooms registered.</p>}
+              {otRooms.sort((a, b) => a.roomId - b.roomId).map(room => (
+                <div
+                  key={room.roomId}
+                  className={`dash-bed-cell ${room.occupied ? 'dash-bed-cell--ot-occupied' : 'dash-bed-cell--ot-free'}`}
+                  title={room.occupied ? `OT Room ${room.roomId} — ${room.patientName || 'In Use'}` : `OT Room ${room.roomId} — Available`}
+                  onClick={() => setActiveTab('OTRooms')}
+                >
+                  <span className="dash-bed-icon">{room.occupied ? <XCircle size={20}/> : <CheckCircle2 size={20}/>}</span>
+                  <span className="dash-bed-id">#{room.roomId}</span>
+                  {room.occupied && <span className="dash-bed-patient">{(room.patientName || 'P').substring(0, 6)}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Live Activity Feed */}
+        <div className="dash-panel">
+          <div className="dash-chart-header">
+            <h3><Zap size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Live Activity Feed</h3>
+            <span className="dash-chart-badge">{activity.length} Events</span>
+          </div>
+          <div className="dash-activity-feed">
+            {activity.length === 0 && (
+              <div className="dash-empty">No recent activity. Add patients, appointments or operations to see updates here.</div>
+            )}
+            {activity.map((item, i) => (
+              <div key={i} className="dash-activity-item" style={{ animationDelay: `${i * 60}ms` }}>
+                <span className="dash-activity-icon">
+                  <item.Icon size={18} color={item.color} />
+                </span>
+                <div className="dash-activity-content">
+                  <p className="dash-activity-text">{item.text}</p>
+                  <span className={`status-badge ${item.badge}`}>{item.type}</span>
+                </div>
+                <span className="dash-activity-time">{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
