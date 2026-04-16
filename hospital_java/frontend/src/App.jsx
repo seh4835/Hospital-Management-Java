@@ -117,10 +117,10 @@ function App() {
         {activeTab === 'Doctors' && <DoctorsView doctors={doctors} reload={loadData} />}
         {activeTab === 'Appointments' && <AppointmentsView appointments={appointments} patients={patients} doctors={doctors} reload={loadData} />}
         {activeTab === 'Beds' && <BedsView beds={beds} reload={loadData} patients={patients} />}
-        {activeTab === 'OTRooms' && <OTRoomsView otRooms={otRooms} reload={loadData} patients={patients} />}
+        {activeTab === 'OTRooms' && <OTRoomsView otRooms={otRooms} reload={loadData} patients={patients} operations={operations} />}
         {activeTab === 'Records' && <MedicalRecordsView records={records} reload={loadData} patients={patients} doctors={doctors} />}
         {activeTab === 'Billing' && <BillingView bills={bills} reload={loadData} patients={patients} />}
-        {activeTab === 'Pharmacy' && <PharmacyView medicines={medicines} reload={loadData} />}
+        {activeTab === 'Pharmacy' && <PharmacyView medicines={medicines} reload={loadData} patients={patients} />}
         {activeTab === 'Lab' && <LabView tests={tests} reload={loadData} patients={patients} />}
         {activeTab === 'Operations' && <OperationsView operations={operations} patients={patients} doctors={doctors} otRooms={otRooms} reload={loadData} />}
       </main>
@@ -599,7 +599,6 @@ function PatientsView({ patients, reload }) {
                 <td>{p.disease}</td>
                 <td>
                   <button className="action-btn update-btn" onClick={() => handleUpdate(p.patientId)}>Update</button>
-                  <button className="action-btn delete-btn" onClick={() => handleDelete(p.patientId)}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -864,8 +863,15 @@ function BedsView({ beds, reload, patients = [] }) {
 }
 
 // ==================== OT ROOMS VIEW ====================
-function OTRoomsView({ otRooms, reload, patients = [] }) {
+function OTRoomsView({ otRooms, reload, patients = [], operations = [] }) {
   const [assigningTo, setAssigningTo] = useState({});
+
+  // Patients currently in an active (non-completed) operation
+  const patientsInSurgery = new Set(
+    operations
+      .filter(op => op.status !== 'Completed')
+      .map(op => op.patientName)
+  );
 
   const submitRoom = async (e) => {
     e.preventDefault();
@@ -875,14 +881,28 @@ function OTRoomsView({ otRooms, reload, patients = [] }) {
 
   const handleAssign = async (id, name) => {
     if (name) {
-      await api.assignRoom(id, name, 'OT'); // Pass type hint
+      await api.assignRoom(id, name, 'OT');
       setAssigningTo({ ...assigningTo, [id]: undefined });
       reload();
     }
   };
 
-  const handleFree = async (id) => {
-    await api.freeRoom(id, 'OT');
+  const handleFree = async (roomId) => {
+    // Find the patient currently in this room
+    const room = otRooms.find(r => r.roomId === roomId);
+    const patientName = room?.patientName;
+
+    // Auto-complete their active operation before freeing the room
+    if (patientName) {
+      const activeOp = operations.find(
+        op => op.patientName === patientName && op.status !== 'Completed'
+      );
+      if (activeOp) {
+        await api.updateOperationStatus(activeOp.operationId, 'Completed');
+      }
+    }
+
+    await api.freeRoom(roomId, 'OT');
     reload();
   };
 
@@ -919,18 +939,26 @@ function OTRoomsView({ otRooms, reload, patients = [] }) {
                   </span>
                 </td>
                 <td>
-                  <select 
+                  <select
                     style={{ padding: '4px', borderRadius: '4px', border: '1px solid #CBD5E1' }}
                     onChange={(e) => setAssigningTo({ ...assigningTo, [r.roomId]: e.target.value })}
                     value={assigningTo[r.roomId] !== undefined ? assigningTo[r.roomId] : (r.patientName || '')}
                   >
                     <option value="">Select Patient</option>
-                    {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+                    {patients.map(p => (
+                      <option
+                        key={p.patientId}
+                        value={p.name}
+                        disabled={patientsInSurgery.has(p.name) && p.name !== r.patientName}
+                      >
+                        {p.name}{patientsInSurgery.has(p.name) && p.name !== r.patientName ? ' (In Surgery)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </td>
                 <td style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    className="action-btn update-btn" 
+                  <button
+                    className="action-btn update-btn"
                     onClick={() => handleAssign(r.roomId, assigningTo[r.roomId] || r.patientName)}
                     disabled={!assigningTo[r.roomId] && !r.patientName}
                   >
@@ -1035,7 +1063,6 @@ function MedicalRecordsView({ records, reload, patients, doctors }) {
                 <td>{r.treatment}</td>
                 <td>
                   <button className="action-btn update-btn" onClick={() => handleUpdate(r.recordId)}>Update</button>
-                  <button className="action-btn delete-btn" onClick={() => handleDelete(r.recordId)}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -1050,6 +1077,7 @@ function MedicalRecordsView({ records, reload, patients, doctors }) {
 function BillingView({ bills, reload, patients = [] }) {
   const [form, setForm] = useState({ patientName: '', treatment: '', amount: '', insuranceStatus: 'Paid' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusEdits, setStatusEdits] = useState({});
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1058,9 +1086,27 @@ function BillingView({ bills, reload, patients = [] }) {
     reload();
   };
 
+  const handleStatusChange = (billId, newStatus) => {
+    setStatusEdits(prev => ({ ...prev, [billId]: newStatus }));
+  };
+
+  const handleStatusSave = async (billId) => {
+    const newStatus = statusEdits[billId];
+    if (!newStatus) return;
+    await api.updateBillStatus(billId, newStatus);
+    setStatusEdits(prev => { const next = { ...prev }; delete next[billId]; return next; });
+    reload();
+  };
+
   const filteredBills = bills.filter(b =>
     b.patientName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getStatusClass = (status) => {
+    if (status === 'Paid') return 'status-available';
+    if (status === 'Insurance Claim') return 'status-info';
+    return 'status-warning';
+  };
 
   return (
     <div className="page-container">
@@ -1100,7 +1146,15 @@ function BillingView({ bills, reload, patients = [] }) {
             style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}
           />
         </div>
-        <table>
+        <table style={{ tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            <col style={{ width: '70px' }} />
+            <col style={{ width: '160px' }} />
+            <col />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '175px' }} />
+            <col style={{ width: '110px' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>ID</th>
@@ -1108,20 +1162,71 @@ function BillingView({ bills, reload, patients = [] }) {
               <th>Treatment</th>
               <th>Amount</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {filteredBills.map((b, i) => (
-              <tr key={i}>
-                <td>{b.billId}</td>
-                <td>{b.patientName}</td>
-                <td>{b.treatment}</td>
-                <td>${(parseFloat(b.amount) || 0).toFixed(2)}</td>
-                <td><span className={`status-badge ${b.insuranceStatus === 'Paid' ? 'status-available' : 'status-warning'}`}>{b.insuranceStatus}</span></td>
-                <td><button className="action-btn delete-btn" onClick={() => api.deleteBill(b.billId).then(reload)}>Remove</button></td>
-              </tr>
-            ))}
+            {filteredBills.map((b, i) => {
+              const isPaid = b.insuranceStatus === 'Paid';
+              const currentStatus = statusEdits[b.billId] !== undefined ? statusEdits[b.billId] : b.insuranceStatus;
+              const isDirty = statusEdits[b.billId] !== undefined;
+
+              const statusColor = {
+                'Paid':             { bg: '#DCFCE7', color: '#166534', border: '#86EFAC' },
+                'Pending':          { bg: '#FEF3C7', color: '#92400E', border: '#FCD34D' },
+                'Insurance Claim':  { bg: '#DBEAFE', color: '#1E40AF', border: '#93C5FD' },
+              };
+              const sc = statusColor[currentStatus] || statusColor['Pending'];
+
+              return (
+                <tr key={i} style={{ background: isPaid ? '#FAFFFE' : 'white' }}>
+                  <td style={{ color: '#94A3B8', fontSize: '0.85rem' }}>{b.billId}</td>
+                  <td style={{ fontWeight: '500' }}>{b.patientName}</td>
+                  <td style={{ color: '#475569', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.treatment}</td>
+                  <td style={{ fontWeight: '600' }}>${(parseFloat(b.amount) || 0).toFixed(2)}</td>
+                  <td>
+                    {isPaid ? (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        padding: '4px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '700',
+                        background: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC',
+                        letterSpacing: '0.04em',
+                      }}>
+                        ✓ PAID
+                      </span>
+                    ) : (
+                      <select
+                        value={currentStatus}
+                        onChange={e => handleStatusChange(b.billId, e.target.value)}
+                        style={{
+                          width: '100%', padding: '4px 6px', borderRadius: '6px',
+                          border: `1px solid ${isDirty ? '#0D9488' : sc.border}`,
+                          background: sc.bg, color: sc.color,
+                          fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer',
+                          outline: 'none', letterSpacing: '0.04em',
+                          boxShadow: isDirty ? '0 0 0 2px #CCFBF1' : 'none',
+                        }}
+                      >
+                        <option value="Pending">PENDING</option>
+                        <option value="Insurance Claim">INSURANCE CLAIM</option>
+                        <option value="Paid">PAID</option>
+                      </select>
+                    )}
+                  </td>
+                  <td>
+                    {!isPaid && isDirty ? (
+                      <button
+                        className="action-btn update-btn"
+                        onClick={() => handleStatusSave(b.billId)}
+                        style={{ fontSize: '0.8rem', padding: '5px 14px', whiteSpace: 'nowrap' }}
+                      >
+                        Update
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1131,9 +1236,11 @@ function BillingView({ bills, reload, patients = [] }) {
 
 
 // ==================== PHARMACY VIEW ====================
-function PharmacyView({ medicines, reload }) {
+function PharmacyView({ medicines, reload, patients = [] }) {
   const [form, setForm] = useState({ name: '', stock: '', price: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [sellForm, setSellForm] = useState({ patientName: '', medicineId: '', quantity: '' });
+  const [sellMsg, setSellMsg] = useState(null); // { type: 'success'|'error', text }
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1145,12 +1252,46 @@ function PharmacyView({ medicines, reload }) {
   const handleUpdate = async (m) => {
     const newStock = window.prompt(`Update Stock for ${m.name}:`, m.stock);
     const newPrice = window.prompt(`Update Price ($) for ${m.name}:`, m.price);
-
     if (newStock !== null && newPrice !== null) {
       await api.updateMedicine(m.medicineId, parseInt(newStock), parseFloat(newPrice));
       reload();
     }
   };
+
+  const handleSell = async (e) => {
+    e.preventDefault();
+    setSellMsg(null);
+    const qty = parseInt(sellForm.quantity);
+    if (!sellForm.patientName) {
+      setSellMsg({ type: 'error', text: 'Please select a patient to generate a bill.' });
+      return;
+    }
+    if (!sellForm.medicineId || !qty || qty <= 0) {
+      setSellMsg({ type: 'error', text: 'Please select a medicine and enter a valid quantity.' });
+      return;
+    }
+    const med = medicines.find(m => parseInt(m.medicineId) === parseInt(sellForm.medicineId));
+    // Step 1: Sell — reduce stock
+    const sellRes = await api.sellMedicine(parseInt(sellForm.medicineId), qty);
+    if (sellRes && sellRes.status === 'success') {
+      // Step 2: Auto-create a bill for this sale
+      const totalAmount = (parseFloat(med?.price || 0) * qty).toFixed(2);
+      await api.createBill({
+        patientName: sellForm.patientName,
+        treatment: `${med?.name || 'Medicine'} x${qty}`,
+        amount: totalAmount,
+        insuranceStatus: 'Paid',
+      });
+      setSellMsg({ type: 'success', text: `✓ Sold ${qty} unit(s) of ${med?.name || 'medicine'} to ${sellForm.patientName}. Bill of $${totalAmount} added to Billing. Remaining stock: ${sellRes.remaining}` });
+      setSellForm({ patientName: '', medicineId: '', quantity: '' });
+      reload();
+    } else {
+      setSellMsg({ type: 'error', text: sellRes?.message || 'Sale failed. Please try again.' });
+    }
+  };
+
+  const selectedMed = medicines.find(m => parseInt(m.medicineId) === parseInt(sellForm.medicineId));
+  const totalCost = selectedMed && sellForm.quantity ? (parseFloat(selectedMed.price) * parseInt(sellForm.quantity)).toFixed(2) : null;
 
   const filteredMeds = medicines.filter(m =>
     m.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1160,25 +1301,92 @@ function PharmacyView({ medicines, reload }) {
     <div className="page-container">
       <h1 className="page-title">Pharmacy Management</h1>
 
-      <div className="form-card">
-        <form onSubmit={submit} className="data-form">
-          <div className="input-group"><label>Medicine Name</label><input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="input-group"><label>Stock Qty</label><input required type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></div>
-          <div className="input-group"><label>Price ($)</label><input required type="number" step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></div>
-          <button type="submit" className="primary-btn">Add Medicine</button>
-        </form>
+      {/* Top panels: Add Medicine + Sell to Patient side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+
+        {/* Add Medicine */}
+        <div className="form-card" style={{ margin: 0 }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: '700', color: '#1E293B', borderBottom: '2px solid #0D9488', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Medicine
+          </h3>
+          <form onSubmit={submit} className="data-form">
+            <div className="input-group"><label>Medicine Name</label><input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="input-group"><label>Stock Qty</label><input required type="number" min="1" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></div>
+            <div className="input-group"><label>Price ($)</label><input required type="number" step="0.01" min="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></div>
+            <button type="submit" className="primary-btn">Add Medicine</button>
+          </form>
+        </div>
+
+        {/* Sell to Patient */}
+        <div className="form-card" style={{ margin: 0, borderTop: '3px solid #8B5CF6' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: '700', color: '#1E293B', borderBottom: '2px solid #8B5CF6', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+            Sell to Patient
+          </h3>
+          {sellMsg && (
+            <div style={{
+              padding: '10px 14px', borderRadius: '8px', marginBottom: '14px', fontSize: '0.875rem', fontWeight: '500',
+              background: sellMsg.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+              color: sellMsg.type === 'success' ? '#166534' : '#991B1B',
+              border: `1px solid ${sellMsg.type === 'success' ? '#86EFAC' : '#FCA5A5'}`,
+            }}>
+              {sellMsg.text}
+            </div>
+          )}
+          <form onSubmit={handleSell} className="data-form">
+            <div className="input-group">
+              <label>Patient</label>
+              <select required value={sellForm.patientName} onChange={e => setSellForm({ ...sellForm, patientName: e.target.value })}>
+                <option value="">Select Patient (required for billing)</option>
+                {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="input-group">
+              <label>Medicine</label>
+              <select required value={sellForm.medicineId} onChange={e => setSellForm({ ...sellForm, medicineId: e.target.value })}>
+                <option value="">Select Medicine</option>
+                {medicines.map(m => (
+                  <option key={m.medicineId} value={m.medicineId} disabled={m.stock === 0}>
+                    {m.name} — Stock: {m.stock} {m.stock === 0 ? '(OUT)' : ''} @ ${(parseFloat(m.price)||0).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group">
+              <label>Quantity</label>
+              <input
+                required type="number" min="1"
+                max={selectedMed ? selectedMed.stock : undefined}
+                placeholder="Units to sell"
+                value={sellForm.quantity}
+                onChange={e => setSellForm({ ...sellForm, quantity: e.target.value })}
+              />
+            </div>
+            {totalCost !== null && (
+              <div style={{ background: 'linear-gradient(135deg,#8B5CF6,#A78BFA)', borderRadius: '10px', padding: '12px 16px', marginBottom: '4px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.875rem', opacity: 0.9 }}>Total Cost</span>
+                <span style={{ fontSize: '1.25rem', fontWeight: '800' }}>${totalCost}</span>
+              </div>
+            )}
+            <button type="submit" className="primary-btn" style={{ background: 'linear-gradient(135deg,#7C3AED,#8B5CF6)', marginTop: '4px' }}>Sell Medicine</button>
+          </form>
+        </div>
       </div>
 
+      {/* Inventory Table */}
       <div className="table-container">
-        <div style={{ padding: '15px', borderBottom: '1px solid #E2E8F0' }}>
+        <div style={{ padding: '15px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
           <input
             type="text"
             placeholder="Search medicine by name..."
             className="search-input"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}
+            style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}
           />
+          <span style={{ fontSize: '0.8rem', color: '#64748B', whiteSpace: 'nowrap' }}>{filteredMeds.length} items</span>
         </div>
         <table>
           <thead>
@@ -1195,8 +1403,17 @@ function PharmacyView({ medicines, reload }) {
               <tr key={i}>
                 <td>{m.medicineId}</td>
                 <td>{m.name}</td>
-                <td style={{ color: m.stock <= 10 ? '#DC2626' : 'inherit', fontWeight: m.stock <= 10 ? 'bold' : 'normal' }}>
-                  {m.stock} {m.stock <= 10 && ' (LOW)'}
+                <td>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '3px 10px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: '700',
+                    background: m.stock === 0 ? '#FEE2E2' : m.stock <= 10 ? '#FEF3C7' : '#DCFCE7',
+                    color: m.stock === 0 ? '#991B1B' : m.stock <= 10 ? '#92400E' : '#166534',
+                  }}>
+                    {m.stock}
+                    {m.stock === 0 && ' OUT OF STOCK'}
+                    {m.stock > 0 && m.stock <= 10 && ' LOW'}
+                  </span>
                 </td>
                 <td>${(parseFloat(m.price) || 0).toFixed(2)}</td>
                 <td style={{ display: 'flex', gap: '8px' }}>
@@ -1290,25 +1507,35 @@ function LabView({ tests, reload, patients = [] }) {
                 <td>{t.patientName}</td>
                 <td>{t.testType}</td>
                 <td>
-                  <select 
-                    value={t.status || 'Pending'} 
-                    onChange={(e) => handleUpdate(t.testId, e.target.value)}
-                    className="status-dropdown"
-                    style={{
-                      padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
-                      backgroundColor: t.status === 'Completed' ? '#F0FDF4' : t.status === 'In Progress' ? '#FEFCE8' : '#F8FAFC',
-                      color: t.status === 'Completed' ? '#166534' : t.status === 'In Progress' ? '#854D0E' : '#475569'
-                    }}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
+                  {t.status === 'Completed' ? (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700',
+                      background: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC',
+                      letterSpacing: '0.03em',
+                    }}>
+                      ✓ Completed
+                    </span>
+                  ) : (
+                    <select
+                      value={t.status || 'Pending'}
+                      onChange={(e) => handleUpdate(t.testId, e.target.value)}
+                      className="status-dropdown"
+                      style={{
+                        padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
+                        backgroundColor: t.status === 'In Progress' ? '#FEFCE8' : '#F8FAFC',
+                        color: t.status === 'In Progress' ? '#854D0E' : '#475569',
+                      }}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  )}
                 </td>
                 <td>{t.date}</td>
-                <td>
-                  <button className="action-btn delete-btn" onClick={() => api.deleteTest(t.testId).then(reload)}>Delete</button>
+                <td style={{ color: '#94A3B8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                  {t.status === 'Completed' ? '✓ Done' : 'In progress'}
                 </td>
               </tr>
             ))}
@@ -1327,20 +1554,34 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
   const [form, setForm] = useState({ patientName: '', doctorName: '', roomId: '', date: '', time: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Patients already in an active (non-completed) operation
+  const patientsInActiveOp = new Set(
+    operations
+      .filter(op => op.status !== 'Completed')
+      .map(op => op.patientName)
+  );
+
   const submit = async (e) => {
     e.preventDefault();
     const res = await api.createOperation(form);
     if (res && res.status === 'error') {
       alert(res.message);
     } else {
+      // Auto-assign the chosen OT room to this patient so it shows as occupied
+      if (form.roomId && form.patientName) {
+        await api.assignRoom(form.roomId, form.patientName, 'OT');
+      }
       setForm({ patientName: '', doctorName: '', roomId: '', date: '', time: '' });
       reload();
     }
   };
 
-  const updateStatus = async (id, newStatus) => {
-    await api.updateOperationStatus(id, newStatus);
-    if (newStatus === 'Completed') alert("Operation completed. Room has been freed.");
+  const updateStatus = async (op, newStatus) => {
+    await api.updateOperationStatus(op.operationId, newStatus);
+    if (newStatus === 'Completed') {
+      await api.freeRoom(op.roomId, 'OT');
+      alert("Operation completed. Room has been freed.");
+    }
     reload();
   };
 
@@ -1358,7 +1599,15 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
             <label>Patient</label>
             <select required value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}>
               <option value="">Select Patient</option>
-              {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+              {patients.map(p => (
+                <option
+                  key={p.patientId}
+                  value={p.name}
+                  disabled={patientsInActiveOp.has(p.name)}
+                >
+                  {p.name}{patientsInActiveOp.has(p.name) ? ' (Already in Surgery)' : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div className="input-group">
@@ -1372,7 +1621,15 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
             <label>OT Room</label>
             <select required value={form.roomId} onChange={e => setForm({ ...form, roomId: e.target.value })}>
               <option value="">Select Room</option>
-              {otRooms.map(r => <option key={r.roomId} value={r.roomId}>Room {r.roomId} {r.occupied ? '(In Use)' : ''}</option>)}
+              {otRooms.map(r => (
+                <option 
+                  key={r.roomId} 
+                  value={r.roomId}
+                  disabled={r.occupied}
+                >
+                  Room {r.roomId} {r.occupied ? '(In Use)' : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div className="input-group"><label>Date</label><input required type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
@@ -1400,7 +1657,6 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
               <th>Room</th>
               <th>Status</th>
               <th>Date</th>
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1410,26 +1666,35 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
                 <td>{op.patientName}</td>
                 <td>Dr. {op.doctorName}</td>
                 <td><span className="status-badge status-warning">Room {op.roomId}</span></td>
-<td>
-                  <select 
-                    value={op.status || 'Waiting'} 
-                    onChange={(e) => updateStatus(op.operationId, e.target.value)}
-                    className="status-dropdown"
-                    style={{
-                      padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
-                      backgroundColor: op.status === 'Completed' ? '#F0FDF4' : op.status === 'Running' ? '#FEFCE8' : '#F8FAFC',
-                      color: op.status === 'Completed' ? '#166534' : op.status === 'Running' ? '#854D0E' : '#475569'
-                    }}
-                  >
-                    <option value="Waiting">Waiting</option>
-                    <option value="Running">Running</option>
-                    <option value="Completed">Completed</option>
-                  </select>
+                <td>
+                  {op.status === 'Completed' ? (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700',
+                      background: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC',
+                      letterSpacing: '0.03em',
+                    }}>
+                      ✓ Completed
+                    </span>
+                  ) : (
+                    <select
+                      value={op.status || 'Waiting'}
+                      onChange={(e) => updateStatus(op, e.target.value)}
+                      className="status-dropdown"
+                      style={{
+                        padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0',
+                        backgroundColor: op.status === 'Running' ? '#FEFCE8' : '#F8FAFC',
+                        color: op.status === 'Running' ? '#854D0E' : '#475569',
+                      }}
+                    >
+                      <option value="Waiting">Waiting</option>
+                      <option value="Running">Running</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  )}
                 </td>
                 <td>{op.date}</td>
-                <td style={{ display: 'flex', gap: '8px' }}>
-                  <button className="action-btn delete-btn" onClick={() => api.deleteOperation(op.operationId).then(reload)}>Cancel</button>
-                </td>
+
               </tr>
             ))}
             {filteredOps.length === 0 && (

@@ -175,6 +175,15 @@ export const createBill = async (bill) => {
     return res.json();
 };
 
+export const updateBillStatus = async (billId, insuranceStatus) => {
+    const res = await fetch(`${API_BASE}/billing`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billId, insuranceStatus }),
+    });
+    return res.json();
+};
+
 export const deleteBill = async (id) => {
     const res = await fetch(`${API_BASE}/billing?id=${id}`, {
         method: 'DELETE',
@@ -202,6 +211,15 @@ export const updateMedicine = async (medicineId, stock, price) => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ medicineId, stock, price }),
+    });
+    return res.json();
+};
+
+export const sellMedicine = async (medicineId, quantity) => {
+    const res = await fetch(`${API_BASE}/pharmacy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ medicineId, quantity, action: 'sell' }),
     });
     return res.json();
 };

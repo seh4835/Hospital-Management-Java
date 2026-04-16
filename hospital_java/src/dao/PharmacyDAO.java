@@ -23,7 +23,8 @@ public class PharmacyDAO {
     // ---------------- AUTO-ID GENERATION ----------------
     public int getNextId() {
         Document lastDoc = collection.find().sort(new Document("medicineId", -1)).first();
-        if (lastDoc == null) return 1;
+        if (lastDoc == null)
+            return 1;
         return lastDoc.getInteger("medicineId") + 1;
     }
 
