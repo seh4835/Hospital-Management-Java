@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -55,8 +56,14 @@ function App() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="layout">
@@ -124,6 +131,85 @@ function App() {
         {activeTab === 'Lab' && <LabView tests={tests} reload={loadData} patients={patients} />}
         {activeTab === 'Operations' && <OperationsView operations={operations} patients={patients} doctors={doctors} otRooms={otRooms} reload={loadData} />}
       </main>
+    </div>
+  );
+}
+
+// ==================== LOGIN PAGE ====================
+function LoginPage({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin') {
+      setError('');
+      onLogin();
+    } else {
+      setError('Invalid credentials. (Hint: admin / admin)');
+    }
+  };
+
+  return (
+    <div className="login-viewport">
+      <div className="login-ambient-bg"></div>
+      
+      <div className="login-glass-panel">
+        <div className="login-header">
+          <div className="login-logo-box">
+            <Activity size={40} color="#ffffff" strokeWidth={2.5} />
+          </div>
+          <h2 className="login-title">Sanctuary Health</h2>
+          <p className="login-subtitle">Hospital Management System</p>
+        </div>
+        
+        {error && (
+          <div className="login-alert fade-in">
+            <XCircle size={18} /> {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleLogin} className="login-form">
+          <div className="login-field">
+            <label>Administrator ID</label>
+            <div className="login-input-wrapper">
+              <UserRound size={18} className="login-input-icon" />
+              <input 
+                type="text" 
+                placeholder="Enter 'admin'" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+          </div>
+          
+          <div className="login-field">
+            <label>Passcode</label>
+            <div className="login-input-wrapper">
+              <LogOut size={18} className="login-input-icon" style={{transform: 'rotate(180deg)'}} />
+              <input 
+                type="password" 
+                placeholder="Enter 'admin'" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          
+          <button type="submit" className="btn-login">
+            Access System
+            <Zap size={16} className="btn-login-icon" />
+          </button>
+        </form>
+        
+        <div className="login-footer">
+          <p>Restricted Access &bull; Authorized Personnel Only</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -222,6 +308,14 @@ function Dashboard({ patients, doctors, appointments, beds = [], otRooms = [], r
     { name: 'Pending',     value: tests.filter(t => t.status === 'Pending').length,      fill: '#F59E0B' },
     { name: 'Cancelled',   value: tests.filter(t => t.status === 'Cancelled').length,   fill: '#EF4444' },
   ];
+
+  // Chart: Doctor Status
+  const doctorStatusData = [
+    { name: 'Active', value: doctors.filter(d => !d.status || d.status === 'Active').length, fill: '#0D9488' },
+    { name: 'Holiday', value: doctors.filter(d => d.status === 'Holiday').length, fill: '#F59E0B' },
+    { name: 'Resigned', value: doctors.filter(d => d.status === 'Resigned').length, fill: '#6366F1' },
+    { name: 'Fired', value: doctors.filter(d => d.status === 'Fired').length, fill: '#E11D48' },
+  ].filter(item => item.value > 0);
 
   // Chart: Module bar chart
   const moduleData = [
@@ -377,6 +471,36 @@ function Dashboard({ patients, doctors, appointments, beds = [], otRooms = [], r
           </ResponsiveContainer>
         </div>
 
+        {/* Doctor Status Donut */}
+        <div className="dash-chart-card">
+          <div className="dash-chart-header">
+            <h3><Stethoscope size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Staff Status</h3>
+            <span className="dash-chart-badge">{doctors.length} Total</span>
+          </div>
+          <div className="dash-chart-body">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={doctorStatusData} cx="50%" cy="50%"
+                  innerRadius={55} outerRadius={80}
+                  paddingAngle={3} dataKey="value"
+                  animationBegin={0} animationDuration={1000}
+                >
+                  {doctorStatusData.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
+                </Pie>
+                <Tooltip formatter={(v, n) => [`${v} doctors`, n]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="dash-donut-center">
+              <span className="dash-donut-pct">
+                {doctors.length ? Math.round((doctors.filter(d => !d.status || d.status === 'Active').length / doctors.length) * 100) : 0}%
+              </span>
+              <span className="dash-donut-label">Active</span>
+            </div>
+          </div>
+        </div>
+
         {/* Lab Test Status - horizontal bar chart for clarity */}
         <div className="dash-chart-card">
           <div className="dash-chart-header">
@@ -401,7 +525,7 @@ function Dashboard({ patients, doctors, appointments, beds = [], otRooms = [], r
         </div>
 
         {/* Module Overview Bar */}
-        <div className="dash-chart-card dash-chart-card--wide">
+        <div className="dash-chart-card dash-chart-card--span2">
           <div className="dash-chart-header">
             <h3><BarChart2 size={16} style={{marginRight:6,verticalAlign:'middle'}}/>Hospital Modules Overview</h3>
             <span className="dash-chart-badge">All Modules</span>
@@ -625,11 +749,9 @@ function DoctorsView({ doctors, reload }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Delete this doctor record?')) {
-      await api.deleteDoctor(id);
-      reload();
-    }
+  const handleStatusChange = async (id, newStatus) => {
+    await api.updateDoctorStatus(id, newStatus);
+    reload();
   };
 
   const filtered = doctors.filter(d => 
@@ -675,7 +797,7 @@ function DoctorsView({ doctors, reload }) {
               <th>Name</th>
               <th>Age</th>
               <th>Specialization</th>
-              <th>Actions</th>
+              <th>Status / Action</th>
             </tr>
           </thead>
           <tbody>
@@ -686,7 +808,16 @@ function DoctorsView({ doctors, reload }) {
                 <td>{d.age}</td>
                 <td>{d.specialization}</td>
                 <td>
-                  <button className="action-btn delete-btn" onClick={() => handleDelete(d.doctorId)}>Delete</button>
+                  <select 
+                    value={d.status || 'Active'} 
+                    onChange={(e) => handleStatusChange(d.doctorId, e.target.value)}
+                    style={{ padding: '6px', borderRadius: '4px', border: '1px solid #CBD5E1', fontSize: '0.85rem' }}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Fired">Fired</option>
+                    <option value="Holiday">Holiday</option>
+                    <option value="Resigned">Resigned</option>
+                  </select>
                 </td>
               </tr>
             ))}
@@ -779,6 +910,7 @@ function AppointmentsView({ appointments, patients, doctors, reload }) {
 // ==================== BEDS VIEW ====================
 function BedsView({ beds, reload, patients = [] }) {
   const [assigningTo, setAssigningTo] = useState({});
+  const patientsInBeds = new Set(beds.filter(b => b.occupied).map(b => b.patientName));
 
   const submitRoom = async (e) => {
     e.preventDefault();
@@ -838,7 +970,9 @@ function BedsView({ beds, reload, patients = [] }) {
                     value={assigningTo[r.roomId] !== undefined ? assigningTo[r.roomId] : (r.patientName || '')}
                   >
                     <option value="">Select Patient</option>
-                    {patients.map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
+                    {patients
+                      .filter(p => !patientsInBeds.has(p.name) || p.name === r.patientName)
+                      .map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
                   </select>
                 </td>
                 <td style={{ display: 'flex', gap: '8px' }}>
@@ -872,6 +1006,8 @@ function OTRoomsView({ otRooms, reload, patients = [], operations = [] }) {
       .filter(op => op.status !== 'Completed')
       .map(op => op.patientName)
   );
+  const patientsInOTRooms = new Set(otRooms.filter(r => r.occupied).map(r => r.patientName));
+  const unavailablePatients = new Set([...patientsInSurgery, ...patientsInOTRooms]);
 
   const submitRoom = async (e) => {
     e.preventDefault();
@@ -881,7 +1017,21 @@ function OTRoomsView({ otRooms, reload, patients = [], operations = [] }) {
 
   const handleAssign = async (id, name) => {
     if (name) {
-      await api.assignRoom(id, name, 'OT');
+      // Auto-create a pending Operation so it shows in Surgical Operations view.
+      // Note: The backend 'createOperation' logic automatically assigns the OT room.
+      const today = new Date().toISOString().split('T')[0];
+      const res = await api.createOperation({
+        patientName: name,
+        doctorName: 'TBD',
+        roomId: id.toString(),
+        date: today,
+        time: ''
+      });
+
+      if (res && res.status === 'error') {
+        alert(res.message);
+      }
+
       setAssigningTo({ ...assigningTo, [id]: undefined });
       reload();
     }
@@ -917,55 +1067,53 @@ function OTRoomsView({ otRooms, reload, patients = [], operations = [] }) {
       </div>
 
       <div className="table-container">
-        <table>
+        <table style={{ tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '25%' }} />
+            <col style={{ width: '40%' }} />
+            <col style={{ width: '20%' }} />
+          </colgroup>
           <thead>
             <tr>
-              <th>Room ID</th>
-              <th>Status</th>
-              <th>Occupant</th>
-              <th>Actions</th>
+              <th style={{ textAlign: 'center' }}>Room ID</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
+              <th style={{ textAlign: 'left' }}>Occupant</th>
+              <th style={{ textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {otRooms.sort((a, b) => a.roomId - b.roomId).map((r, i) => (
-              <tr key={i}>
-                <td>{r.roomId}</td>
-                <td>
+              <tr key={i} style={{ height: '60px' }}>
+                <td style={{ textAlign: 'center', fontWeight: '600', color: '#475569' }}>
+                  {r.roomId}
+                </td>
+                <td style={{ textAlign: 'center' }}>
                   <span style={{
-                    padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold',
-                    background: r.occupied ? '#FEE2E2' : '#DCFCE7', color: r.occupied ? '#991B1B' : '#166534'
+                    display: 'inline-flex', justifyContent: 'center', alignItems: 'center', minWidth: '90px',
+                    padding: '6px 14px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold',
+                    background: r.occupied ? '#FEE2E2' : '#DCFCE7', color: r.occupied ? '#991B1B' : '#166534',
+                    letterSpacing: '0.03em'
                   }}>
                     {r.occupied ? 'In Use' : 'Available'}
                   </span>
                 </td>
-                <td>
-                  <select
-                    style={{ padding: '4px', borderRadius: '4px', border: '1px solid #CBD5E1' }}
-                    onChange={(e) => setAssigningTo({ ...assigningTo, [r.roomId]: e.target.value })}
-                    value={assigningTo[r.roomId] !== undefined ? assigningTo[r.roomId] : (r.patientName || '')}
-                  >
-                    <option value="">Select Patient</option>
-                    {patients.map(p => (
-                      <option
-                        key={p.patientId}
-                        value={p.name}
-                        disabled={patientsInSurgery.has(p.name) && p.name !== r.patientName}
-                      >
-                        {p.name}{patientsInSurgery.has(p.name) && p.name !== r.patientName ? ' (In Surgery)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                <td style={{ textAlign: 'left' }}>
+                  <span style={{ fontWeight: r.occupied ? '600' : '500', color: r.occupied ? '#1E293B' : '#94A3B8' }}>
+                    {r.occupied && r.patientName ? r.patientName : 'None'}
+                  </span>
                 </td>
-                <td style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="action-btn update-btn"
-                    onClick={() => handleAssign(r.roomId, assigningTo[r.roomId] || r.patientName)}
-                    disabled={!assigningTo[r.roomId] && !r.patientName}
-                  >
-                    {r.occupied ? 'Update' : 'Assign'}
-                  </button>
-                  {r.occupied && (
-                    <button className="action-btn delete-btn" onClick={() => handleFree(r.roomId)}>Free</button>
+                <td style={{ textAlign: 'center' }}>
+                  {r.occupied ? (
+                    <button 
+                      className="action-btn delete-btn" 
+                      onClick={() => handleFree(r.roomId)}
+                      style={{ margin: '0 auto', display: 'block', padding: '6px 16px' }}
+                    >
+                      Free Room
+                    </button>
+                  ) : (
+                    <span style={{ color: '#E2E8F0', fontStyle: 'italic', fontSize: '0.9rem' }}>-</span>
                   )}
                 </td>
               </tr>
@@ -1599,15 +1747,9 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
             <label>Patient</label>
             <select required value={form.patientName} onChange={e => setForm({ ...form, patientName: e.target.value })}>
               <option value="">Select Patient</option>
-              {patients.map(p => (
-                <option
-                  key={p.patientId}
-                  value={p.name}
-                  disabled={patientsInActiveOp.has(p.name)}
-                >
-                  {p.name}{patientsInActiveOp.has(p.name) ? ' (Already in Surgery)' : ''}
-                </option>
-              ))}
+              {patients
+                .filter(p => !patientsInActiveOp.has(p.name))
+                .map(p => <option key={p.patientId} value={p.name}>{p.name}</option>)}
             </select>
           </div>
           <div className="input-group">
@@ -1621,14 +1763,15 @@ function OperationsView({ operations, reload, patients = [], doctors = [], otRoo
             <label>OT Room</label>
             <select required value={form.roomId} onChange={e => setForm({ ...form, roomId: e.target.value })}>
               <option value="">Select Room</option>
-              {otRooms.map(r => (
-                <option 
-                  key={r.roomId} 
-                  value={r.roomId}
-                  disabled={r.occupied}
-                >
-                  Room {r.roomId} {r.occupied ? '(In Use)' : ''}
-                </option>
+              {otRooms
+                .filter(r => !r.occupied)
+                .map(r => (
+                  <option 
+                    key={r.roomId} 
+                    value={r.roomId}
+                  >
+                    Room {r.roomId}
+                  </option>
               ))}
             </select>
           </div>

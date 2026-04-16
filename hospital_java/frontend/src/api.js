@@ -52,6 +52,15 @@ export const deleteDoctor = async (id) => {
     return res.json();
 };
 
+export const updateDoctorStatus = async (doctorId, status) => {
+    const res = await fetch(`${API_BASE}/doctors`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorId, status }),
+    });
+    return res.json();
+};
+
 
 export const fetchAppointments = async () => {
     const res = await fetch(`${API_BASE}/appointments`);

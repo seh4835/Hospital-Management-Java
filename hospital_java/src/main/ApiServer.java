@@ -233,6 +233,26 @@ public class ApiServer {
                     os.write(response.getBytes());
                     os.close();
                 }
+            } else if ("PUT".equals(method)) {
+                InputStream is = exchange.getRequestBody();
+                String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                try {
+                    Document doc = Document.parse(body);
+                    int did = Integer.parseInt(doc.get("doctorId").toString());
+                    String status = doc.getString("status");
+                    doctorDAO.updateDoctorStatus(did, status);
+                    String response = "{\"status\":\"success\"}";
+                    exchange.sendResponseHeaders(200, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                } catch (Exception e) {
+                    String response = "{\"status\":\"error\", \"message\":\"" + e.getMessage() + "\"}";
+                    exchange.sendResponseHeaders(400, response.getBytes().length);
+                    OutputStream os = exchange.getResponseBody();
+                    os.write(response.getBytes());
+                    os.close();
+                }
             } else if ("DELETE".equals(method)) {
                 String query = exchange.getRequestURI().getQuery();
                 try {
@@ -750,10 +770,12 @@ public class ApiServer {
                     String newStatus = doc.getString("insuranceStatus");
                     // Use existing amount if only updating status
                     Document existing = billingDAO.getBillsList().stream()
-                        .filter(d -> d.getInteger("billId") == bid)
-                        .findFirst().orElse(null);
-                    if (existing == null) throw new Exception("Bill not found!");
-                    // Use parseDouble from toString to handle both Integer and Double stored in MongoDB
+                            .filter(d -> d.getInteger("billId") == bid)
+                            .findFirst().orElse(null);
+                    if (existing == null)
+                        throw new Exception("Bill not found!");
+                    // Use parseDouble from toString to handle both Integer and Double stored in
+                    // MongoDB
                     double amount = Double.parseDouble(existing.get("amount").toString());
                     billingDAO.updateBill(bid, amount, newStatus);
                     String response = "{\"status\":\"success\"}";
@@ -856,12 +878,15 @@ public class ApiServer {
                         // SELL: deduct quantity from stock
                         int qty = Integer.parseInt(doc.get("quantity").toString());
                         Document medDoc = pharmacyDAO.getMedicinesList().stream()
-                            .filter(d -> d.getInteger("medicineId") == mid)
-                            .findFirst().orElse(null);
-                        if (medDoc == null) throw new Exception("Medicine not found!");
+                                .filter(d -> d.getInteger("medicineId") == mid)
+                                .findFirst().orElse(null);
+                        if (medDoc == null)
+                            throw new Exception("Medicine not found!");
                         int currentStock = medDoc.getInteger("stock");
-                        if (qty <= 0) throw new Exception("Quantity must be greater than 0!");
-                        if (currentStock < qty) throw new Exception("Insufficient stock! Only " + currentStock + " units available.");
+                        if (qty <= 0)
+                            throw new Exception("Quantity must be greater than 0!");
+                        if (currentStock < qty)
+                            throw new Exception("Insufficient stock! Only " + currentStock + " units available.");
                         pharmacyDAO.sellMedicine(mid, qty);
                         String response = "{\"status\":\"success\", \"remaining\":" + (currentStock - qty) + "}";
                         exchange.sendResponseHeaders(200, response.getBytes().length);

@@ -40,7 +40,8 @@ public class DoctorDAO {
         Document doc = new Document("doctorId", doctor.getDoctorId())
                 .append("name", doctor.getName())
                 .append("age", doctor.getAge())
-                .append("specialization", doctor.getSpecialization());
+                .append("specialization", doctor.getSpecialization())
+                .append("status", doctor.getStatus());
 
         collection.insertOne(doc);
         System.out.println("Doctor added successfully!");
@@ -72,6 +73,14 @@ public class DoctorDAO {
         } else {
             System.out.println("Doctor not found!");
         }
+    }
+
+    // ---------------- UPDATE STATUS ----------------
+    public void updateDoctorStatus(int id, String status) {
+        Document query = new Document("doctorId", id);
+        Document update = new Document("$set", new Document("status", status));
+        collection.updateOne(query, update);
+        System.out.println("Doctor status updated successfully!");
     }
 
     // ---------------- SEARCH BY NAME ----------------

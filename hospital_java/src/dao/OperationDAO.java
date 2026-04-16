@@ -35,11 +35,13 @@ public class OperationDAO {
         }
 
         // Validate Doctor
-        boolean doctorExists = false;
-        for (org.bson.Document doc : doctorDAO.getDoctorsList()) {
-            if (doc.getString("name").equals(op.getDoctorName())) {
-                doctorExists = true;
-                break;
+        boolean doctorExists = "TBD".equals(op.getDoctorName());
+        if (!doctorExists) {
+            for (org.bson.Document doc : doctorDAO.getDoctorsList()) {
+                if (doc.getString("name").equals(op.getDoctorName())) {
+                    doctorExists = true;
+                    break;
+                }
             }
         }
 
